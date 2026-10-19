@@ -220,9 +220,8 @@ Der Windows-Installer (NSIS, Benutzerinstallation, DE/EN) wird bei jedem Lauf ge
 und als Artefakt `Sinclair-Atlas-Windows-ungeliefert` abgelegt, aber **nicht**
 veröffentlicht und **nicht** signiert.
 
-- [ ] **Noch nie auf Windows gelaufen.** Der Windows-Code wird erst in GitHub Actions
-      übersetzt; lokal ließ er sich auf dem Mac nicht vollständig prüfen (`ring` braucht
-      einen Windows-C-Compiler). Ersten Lauf abwarten und Fehler beheben.
+- [x] Windows-Code übersetzt und Installer gebaut (erster GitHub-Lauf am 19.10.2026,
+      Artefakt vorhanden). **Gestartet hat ihn noch niemand.**
 - [ ] **Signatur:** vorbereitet für Azure Trusted Signing (ca. 10 $/Monat, Identitätsprüfung
       der Firma). Einschalten:
       1. Trusted-Signing-Konto und Zertifikatprofil in Azure anlegen.
