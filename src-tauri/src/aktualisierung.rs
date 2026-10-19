@@ -17,7 +17,12 @@ static LAEUFT: AtomicBool = AtomicBool::new(false);
 
 pub fn starten(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(20)).await;
+        let warten = if cfg!(debug_assertions) && std::env::var("ATLAS_DESKTOP_UPDATE_OHNE_FRAGE").is_ok() {
+            3
+        } else {
+            20
+        };
+        tokio::time::sleep(Duration::from_secs(warten)).await;
         loop {
             pruefen(&app, false).await;
             tokio::time::sleep(Duration::from_secs(6 * 60 * 60)).await;
@@ -112,6 +117,16 @@ async fn suchen_und_anbieten(app: &AppHandle, manuell: bool) -> Result<(), Strin
             "Install now? Sinclair Atlas will restart — please save any open edits first.",
         ),
     );
+    // Nur Debug: automatischer Test ohne Klick auf den Dialog.
+    if cfg!(debug_assertions) && std::env::var("ATLAS_DESKTOP_UPDATE_OHNE_FRAGE").is_ok() {
+        log::warn!("Update {} wird ohne Rückfrage installiert (Test)", update.version);
+        update
+            .download_and_install(|_, _| {}, || {})
+            .await
+            .map_err(|e| e.to_string())?;
+        app.restart();
+    }
+
     let (tx, rx) = std::sync::mpsc::channel();
     app.dialog()
         .message(frage)
