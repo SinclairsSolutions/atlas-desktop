@@ -1,0 +1,8 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "windows": {
+      "signCommand": "trusted-signing-cli -e ERSETZEN_ENDPUNKT -a ERSETZEN_KONTO -c ERSETZEN_ZERTIFIKATPROFIL -d \"Sinclair Atlas\" %1"
+    }
+  }
+}

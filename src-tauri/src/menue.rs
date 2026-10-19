@@ -63,8 +63,13 @@ pub fn erstellen<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         t("Bearbeiten", "Edit"),
         true,
         &[
+            // Windows kennt diese beiden nicht als Menüeinträge; Strg+Z/Strg+Y
+            // erledigt dort die Webansicht selbst.
+            #[cfg(target_os = "macos")]
             &PredefinedMenuItem::undo(app, Some(t("Widerrufen", "Undo")))?,
+            #[cfg(target_os = "macos")]
             &PredefinedMenuItem::redo(app, Some(t("Wiederholen", "Redo")))?,
+            #[cfg(target_os = "macos")]
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::cut(app, Some(t("Ausschneiden", "Cut")))?,
             &PredefinedMenuItem::copy(app, Some(t("Kopieren", "Copy")))?,
@@ -105,6 +110,10 @@ pub fn erstellen<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &PredefinedMenuItem::maximize(app, Some(t("Zoomen", "Zoom")))?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "hauptfenster", "Sinclair Atlas", true, Some("CmdOrCtrl+1"))?,
+            #[cfg(target_os = "macos")]
+            &PredefinedMenuItem::separator(app)?,
+            #[cfg(target_os = "macos")]
+            &PredefinedMenuItem::bring_all_to_front(app, Some(t("Alle nach vorne bringen", "Bring All to Front")))?,
         ],
     )?;
 

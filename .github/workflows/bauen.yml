@@ -1,0 +1,198 @@
+# Desktop-App „Sinclair Atlas“ bauen.
+#
+#   macOS:   Universal (Apple Silicon + Intel), signiert mit „Developer ID
+#            Application“, von Apple notarisiert, als DMG. Mit Updater-Paket.
+#   Windows: NSIS-Installer. Wird mitgebaut, aber NICHT veröffentlicht — nur als
+#            Artefakt. Signatur ist vorbereitet, aber aus (Variable WINDOWS_SIGNIEREN).
+#
+# Start:
+#   - Tag „v1.2.3“ pushen → Entwurf eines GitHub-Release mit DMG, Updater-Paket
+#     und latest.json (erst nach „Publish“ sehen ihn die installierten Apps).
+#   - Von Hand („Run workflow“ bzw. `gh workflow run bauen.yml`) → nur Artefakte.
+#
+# Alle Zugangsdaten kommen aus GitHub-Secrets (Namen wie im Atlas-Repo, siehe
+# TODO.md). Im Repo steht nichts davon.
+name: Desktop-App bauen
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bauen-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  macos:
+    name: macOS (Universal, signiert, notarisiert)
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Abhängigkeiten
+        run: bun install --frozen-lockfile
+
+      - name: Tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Tag passt zur Version?
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          V=$(bun -e 'console.log(require("./package.json").version)')
+          if [ "v$V" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} passt nicht zu package.json ($V)"; exit 1
+          fi
+
+      - name: Secrets vorhanden?
+        env:
+          P12: ${{ secrets.APPLE_ZERTIFIKAT_P12 }}
+          P12_PW: ${{ secrets.APPLE_ZERTIFIKAT_PASSWORT }}
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APP_PW: ${{ secrets.APPLE_APP_PASSWORT }}
+          UPD_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          fehlt=0
+          for n in P12 P12_PW TEAM APPLE_ID APP_PW UPD_KEY; do
+            if [ -z "${!n}" ]; then echo "::error::Secret für $n fehlt (siehe TODO.md)"; fehlt=1; fi
+          done
+          if grep -q '"pubkey": "ERSETZEN' src-tauri/tauri.conf.json; then
+            echo "::error::Updater-Pubkey in src-tauri/tauri.conf.json ist noch der Platzhalter (siehe TODO.md)"; fehlt=1
+          fi
+          exit $fehlt
+
+      - name: Zertifikat in temporären Schlüsselbund
+        env:
+          P12: ${{ secrets.APPLE_ZERTIFIKAT_P12 }}
+          P12_PW: ${{ secrets.APPLE_ZERTIFIKAT_PASSWORT }}
+        run: |
+          set -euo pipefail
+          KC="$RUNNER_TEMP/signieren.keychain-db"
+          KC_PW="$(uuidgen)"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/zert.p12"
+          security create-keychain -p "$KC_PW" "$KC"
+          security set-keychain-settings -lut 3600 "$KC"
+          security unlock-keychain -p "$KC_PW" "$KC"
+          security import "$RUNNER_TEMP/zert.p12" -k "$KC" -P "$P12_PW" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KC_PW" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/zert.p12"
+          IDENT=$(security find-identity -v -p codesigning "$KC" | grep "Developer ID Application" | head -1 | sed -E 's/.*"(.*)"/\1/')
+          if [ -z "$IDENT" ]; then
+            echo "::error::Kein „Developer ID Application“-Zertifikat im Secret APPLE_ZERTIFIKAT_P12"
+            security find-identity -v -p codesigning "$KC"
+            exit 1
+          fi
+          echo "APPLE_SIGNING_IDENTITY=$IDENT" >> "$GITHUB_ENV"
+
+      - name: Bauen, signieren, notarisieren (Release-Entwurf bei Tag)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Notarisierung über Apple-ID + app-spezifisches Passwort (wie im Atlas-Repo).
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_PASSWORT }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Signatur der Updater-Pakete (nicht Apple, sondern Tauri — siehe TODO.md).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          args: --target universal-apple-darwin --bundles app,dmg
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: "Sinclair Atlas __VERSION__"
+          releaseBody: "Neue Version der Desktop-App. Installierte Apps aktualisieren sich nach dem Veröffentlichen selbst."
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true
+
+      - name: Signatur und Notarisierung prüfen
+        run: |
+          set -euo pipefail
+          APP=$(ls -d src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app | head -1)
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          xcrun stapler validate "$APP"
+          spctl --assess --type execute --verbose=4 "$APP"
+          lipo -archs "$APP/Contents/MacOS/Sinclair Atlas"
+
+      - name: DMG als Artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sinclair-Atlas-macOS
+          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+      - name: Schlüsselbund aufräumen
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signieren.keychain-db" 2>/dev/null || true
+
+  windows:
+    name: Windows (Installer, noch nicht ausgeliefert)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Abhängigkeiten
+        run: bun install --frozen-lockfile
+
+      - name: Tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      # --- Signatur: vorbereitet, aber aus. Einschalten über die Repo-Variable
+      # WINDOWS_SIGNIEREN = true, sobald Azure Trusted Signing eingerichtet ist
+      # (siehe TODO.md, „Windows“). Bis dahin ist der Installer unsigniert und
+      # SmartScreen warnt beim Start.
+      - name: Signierwerkzeug installieren
+        if: vars.WINDOWS_SIGNIEREN == 'true'
+        run: cargo install trusted-signing-cli --locked
+
+      - name: Installer bauen
+        shell: bash
+        env:
+          WINDOWS_SIGNIEREN: ${{ vars.WINDOWS_SIGNIEREN }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          ZUSATZ=(--config src-tauri/tauri.windows.ungeliefert.conf.json)
+          if [ "${WINDOWS_SIGNIEREN:-}" = "true" ]; then
+            ZUSATZ+=(--config src-tauri/tauri.windows-signatur.conf.json)
+          fi
+          bunx tauri build --bundles nsis "${ZUSATZ[@]}"
+
+      - name: Installer als Artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sinclair-Atlas-Windows-ungeliefert
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
