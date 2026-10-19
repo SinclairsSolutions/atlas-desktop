@@ -13,7 +13,7 @@ bräuchte, steht unten unter „Atlas — nur notiert“.
 
 ### 1.1 GitHub-Repo anlegen und pushen
 
-Das Repo liegt bisher nur lokal unter `~/Projekte/atlas-desktop` (8 Commits auf `main`).
+Das Repo liegt bisher nur lokal unter `~/Projekte/atlas-desktop` (Branch `main`).
 
 - [ ] Repo `SinclairsSolutions/atlas-desktop` anlegen und pushen:
       `gh repo create SinclairsSolutions/atlas-desktop --private --source ~/Projekte/atlas-desktop --push`
