@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sinclair Atlas</title>
+  <!-- Lade- und Offline-Ansicht der Desktop-App. Wird angezeigt, bis Atlas
+       erreichbar ist; danach lädt die App die Live-Seite. -->
+  <style>
+    :root {
+      color-scheme: light dark;
+      --text: #1f2a24;
+      --leise: #5b6b62;
+      --grund-a: #eef2ec;
+      --grund-b: #dde7df;
+      --glas: rgba(255, 255, 255, 0.62);
+      --glas-rand: rgba(255, 255, 255, 0.55);
+      --akzent: #24533f;
+      --akzent-hell: #2f6b52;
+      --warn: #b4572e;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --text: #e8efe9;
+        --leise: #a3b3a9;
+        --grund-a: #101814;
+        --grund-b: #18261f;
+        --glas: rgba(30, 44, 37, 0.58);
+        --glas-rand: rgba(255, 255, 255, 0.08);
+        --akzent: #8cc7a7;
+        --akzent-hell: #a6d8bc;
+        --warn: #e6a07a;
+      }
+      .logo { filter: invert(1); }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(60rem 40rem at 15% 10%, rgba(140, 199, 167, 0.28), transparent 60%),
+        radial-gradient(50rem 36rem at 90% 90%, rgba(196, 164, 104, 0.18), transparent 60%),
+        linear-gradient(160deg, var(--grund-a), var(--grund-b));
+      display: grid;
+      place-items: center;
+      -webkit-user-select: none;
+      user-select: none;
+      cursor: default;
+    }
+    .panel {
+      width: min(440px, calc(100vw - 48px));
+      padding: 36px 32px 30px;
+      border-radius: 28px;
+      background: var(--glas);
+      backdrop-filter: blur(24px) saturate(1.4);
+      -webkit-backdrop-filter: blur(24px) saturate(1.4);
+      box-shadow: 0 24px 60px -24px rgba(20, 40, 30, 0.35), inset 0 0 0 1px var(--glas-rand);
+      text-align: center;
+    }
+    .logo { width: 72px; height: 72px; opacity: 0.9; }
+    h1 { font-size: 19px; font-weight: 600; margin: 14px 0 6px; letter-spacing: 0.01em; }
+    p { margin: 0; color: var(--leise); }
+    .punkt {
+      display: inline-block; width: 8px; height: 8px; margin: 0 3px; border-radius: 50%;
+      background: var(--akzent); opacity: 0.25; animation: puls 1.2s infinite ease-in-out;
+    }
+    .punkt:nth-child(2) { animation-delay: 0.15s; }
+    .punkt:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes puls { 50% { opacity: 0.9; transform: translateY(-2px); } }
+    .laden { margin-top: 18px; }
+    .offline { display: none; }
+    body.ist-offline .offline { display: block; }
+    body.ist-offline .laden { display: none; }
+    .symbol {
+      width: 44px; height: 44px; margin: 4px auto 0; border-radius: 14px; display: grid; place-items: center;
+      background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn);
+    }
+    button {
+      margin-top: 22px; padding: 11px 22px; border: 0; border-radius: 14px;
+      font: inherit; font-weight: 600; color: #fff; cursor: pointer;
+      background: linear-gradient(180deg, var(--akzent-hell), var(--akzent));
+      box-shadow: 0 10px 24px -12px rgba(36, 83, 63, 0.8);
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+    @media (prefers-color-scheme: dark) { button { color: #0f1a14; } }
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.6; cursor: progress; transform: none; }
+    .klein { margin-top: 14px; font-size: 12.5px; }
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <img class="logo" src="logo.png" alt="" />
+    <div class="laden">
+      <h1 data-de="Atlas wird geladen" data-en="Loading Atlas">Atlas wird geladen</h1>
+      <div aria-hidden="true"><span class="punkt"></span><span class="punkt"></span><span class="punkt"></span></div>
+    </div>
+    <div class="offline" role="alert">
+      <h1 id="titel" data-de="Keine Verbindung zu Atlas" data-en="Can't reach Atlas">Keine Verbindung zu Atlas</h1>
+      <p id="text" data-de="Prüfe die Internetverbindung. Sobald sie wieder da ist, geht es hier weiter."
+         data-en="Check your internet connection. Atlas will continue as soon as it's back.">
+        Prüfe die Internetverbindung. Sobald sie wieder da ist, geht es hier weiter.</p>
+      <button id="erneut" type="button" data-de="Erneut versuchen" data-en="Try again">Erneut versuchen</button>
+      <p class="klein" id="auto" data-de="Neuer Versuch automatisch alle 15 Sekunden."
+         data-en="Retrying automatically every 15 seconds.">Neuer Versuch automatisch alle 15 Sekunden.</p>
+    </div>
+  </main>
+  <script>
+    (function () {
+      var en = /^en/i.test(navigator.language || "");
+      if (en) document.documentElement.lang = "en";
+      document.querySelectorAll("[data-de]").forEach(function (el) {
+        el.textContent = en ? el.dataset.en : el.dataset.de;
+      });
+      var STOERUNG = {
+        de: ["Atlas ist gerade nicht erreichbar", "Der Server antwortet nicht wie erwartet — vermutlich eine kurze Wartung. Bitte gleich noch einmal versuchen."],
+        en: ["Atlas is unavailable right now", "The server isn't responding as expected — probably brief maintenance. Please try again shortly."],
+      };
+      var ziel = new URLSearchParams(location.search).get("ziel");
+      var knopf = document.getElementById("erneut");
+      var laeuft = false;
+      var timer = null;
+
+      function invoke(cmd, args) {
+        var i = window.__TAURI_INTERNALS__;
+        return i ? i.invoke(cmd, args) : Promise.reject(new Error("keine Brücke"));
+      }
+
+      function versuchen() {
+        if (laeuft) return;
+        laeuft = true;
+        knopf.disabled = true;
+        invoke("verbinden", { zielUrl: ziel })
+          .then(function (ergebnis) {
+            if (ergebnis === "erreichbar") return; // App lädt jetzt Atlas
+            document.body.classList.add("ist-offline");
+            if (ergebnis === "stoerung") {
+              var s = en ? STOERUNG.en : STOERUNG.de;
+              document.getElementById("titel").textContent = s[0];
+              document.getElementById("text").textContent = s[1];
+            }
+          })
+          .catch(function () {
+            document.body.classList.add("ist-offline");
+          })
+          .then(function () {
+            laeuft = false;
+            knopf.disabled = false;
+            clearTimeout(timer);
+            timer = setTimeout(versuchen, 15000);
+          });
+      }
+
+      knopf.addEventListener("click", versuchen);
+      window.addEventListener("online", versuchen);
+      versuchen();
+    })();
+  </script>
+</body>
+</html>

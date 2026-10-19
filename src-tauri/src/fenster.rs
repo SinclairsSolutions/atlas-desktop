@@ -1,0 +1,277 @@
+//! Haupt- und Nebenfenster: was darin geladen werden darf, was in den
+//! Standardbrowser geht, und wie Atlas nach einer Störung wieder lädt.
+//!
+//! Warum die Prüfung zweistufig ist: Unter macOS meldet WebKit Navigationen von
+//! iframes genauso wie die des Hauptfensters, ohne sie zu unterscheiden. Atlas
+//! bettet aber fremde Adressen ein (signierte Speicher-URLs, Google-Drive-
+//! Vorschau, Layer-Vorschau). Würde `on_navigation` alles Fremde sperren,
+//! blieben diese Vorschauen leer und es öffneten sich ungefragt Browser-Tabs.
+//! Deshalb:
+//!   1. `bruecke.js` fängt im Hauptframe Klicks und Navigationen (Navigation API)
+//!      zu fremden Adressen ab, bevor sie starten.
+//!   2. `on_navigation` schickt Anmeldeseiten (Google, Microsoft, Bank …) immer
+//!      in den Browser — die werden nie eingebettet. Unter Windows meldet
+//!      WebView2 nur den Hauptframe, dort geht jede fremde Adresse sofort raus.
+//!   3. `on_page_load` (feuert nur für den Hauptframe) ist das Sicherheitsnetz:
+//!      Landet ein Fenster trotzdem auf einer fremden Seite, geht die Adresse in
+//!      den Browser und das Fenster zurück zu Atlas bzw. zu.
+
+use std::{sync::atomic::Ordering, time::Instant};
+
+use tauri::{
+    webview::{NewWindowFeatures, NewWindowResponse, PageLoadEvent, PageLoadPayload},
+    AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+};
+use tauri_plugin_opener::OpenerExt;
+use url::Url;
+
+use crate::{bruecke, downloads, erreichbarkeit, texte::t, ziel, zustand::Zustand};
+
+pub const HAUPT: &str = "main";
+const NEBEN_PREFIX: &str = "neben-";
+
+pub fn hauptfenster(app: &AppHandle) -> Option<WebviewWindow> {
+    app.get_webview_window(HAUPT)
+}
+
+/// Hauptfenster zeigen (Dock-Klick, zweiter Start, Deep-Link).
+pub fn hauptfenster_zeigen(app: &AppHandle) {
+    if let Some(w) = hauptfenster(app) {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+/// Das Fenster, auf das sich Menübefehle beziehen.
+pub fn aktives_fenster(app: &AppHandle) -> Option<WebviewWindow> {
+    app.webview_windows()
+        .into_values()
+        .find(|w| w.is_focused().unwrap_or(false))
+        .or_else(|| hauptfenster(app))
+}
+
+pub fn hauptfenster_bauen(app: &AppHandle) -> tauri::Result<WebviewWindow> {
+    let b = WebviewWindowBuilder::new(app, HAUPT, WebviewUrl::App("index.html".into()))
+        .title("Sinclair Atlas")
+        .inner_size(1360.0, 880.0)
+        .min_inner_size(880.0, 560.0)
+        .center();
+    ausstatten(app, b, HAUPT.to_string()).build()
+}
+
+/// Gemeinsame Ausstattung für Haupt- und Nebenfenster.
+fn ausstatten<'a>(
+    app: &AppHandle,
+    b: WebviewWindowBuilder<'a, tauri::Wry, AppHandle>,
+    label: String,
+) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
+    let (a1, a2, a3, a4) = (app.clone(), app.clone(), app.clone(), app.clone());
+    let l1 = label.clone();
+    b.initialization_script(bruecke::skript())
+        // Sonst fängt Tauri Datei-Drops ab und Drag & Drop-Uploads in Atlas
+        // kommen nie an.
+        .disable_drag_drop_handler()
+        .on_navigation(move |url| navigation_erlaubt(&a1, &l1, url))
+        .on_new_window(move |url, features| neues_fenster(&a2, url, features))
+        .on_download(move |_webview, event| downloads::ereignis(&a3, event))
+        .on_page_load(move |w, p| seite_geladen(&a4, w, p))
+        .on_document_title_changed(move |w, titel| {
+            // Das Hauptfenster heißt immer „Sinclair Atlas“; Nebenfenster tragen
+            // den Seitentitel (sonst sind sie im Fenster-Menü nicht unterscheidbar).
+            if w.label() != HAUPT && !titel.trim().is_empty() {
+                let _ = w.set_title(&titel);
+            }
+        })
+}
+
+fn navigation_erlaubt(app: &AppHandle, label: &str, url: &Url) -> bool {
+    if ziel::ist_atlas(url) || ziel::ist_lokal(url) || ziel::ist_intern(url) {
+        return true;
+    }
+    if !ziel::darf_extern(url) {
+        log::warn!("Navigation gesperrt: {}", url.scheme());
+        return false;
+    }
+    let http = matches!(url.scheme(), "http" | "https");
+    if !http || ziel::ist_anmeldung(url) || cfg!(windows) {
+        extern_oeffnen(app, url);
+        leeres_nebenfenster_schliessen(app, label);
+        return false;
+    }
+    // macOS: kann ein iframe sein — der Hauptframe wird in `seite_geladen` geprüft.
+    true
+}
+
+fn neues_fenster(app: &AppHandle, url: Url, features: NewWindowFeatures) -> NewWindowResponse<tauri::Wry> {
+    if ziel::ist_atlas(&url) || ziel::ist_intern(&url) {
+        // In der App öffnen: Atlas schreibt in manche Fenster direkt hinein
+        // (Zweitfenster, TIFF-Ansicht, Bank-Login über about:blank) und braucht
+        // dafür die Verbindung zum öffnenden Fenster.
+        let n = app.state::<Zustand>().fenster_zaehler.fetch_add(1, Ordering::Relaxed);
+        let label = format!("{NEBEN_PREFIX}{n}");
+        let b = WebviewWindowBuilder::new(
+            app,
+            &label,
+            WebviewUrl::External("about:blank".parse().expect("about:blank")),
+        )
+        .title("Sinclair Atlas")
+        .inner_size(1100.0, 800.0)
+        .min_inner_size(420.0, 320.0)
+        .window_features(features);
+        return match ausstatten(app, b, label).build() {
+            Ok(window) => NewWindowResponse::Create { window },
+            Err(e) => {
+                log::error!("Nebenfenster ließ sich nicht öffnen: {e}");
+                NewWindowResponse::Deny
+            }
+        };
+    }
+    if ziel::darf_extern(&url) {
+        extern_oeffnen(app, &url);
+    }
+    NewWindowResponse::Deny
+}
+
+fn seite_geladen(app: &AppHandle, w: WebviewWindow, p: PageLoadPayload<'_>) {
+    let url = p.url().clone();
+    match p.event() {
+        PageLoadEvent::Started => {
+            let fremd = matches!(url.scheme(), "http" | "https")
+                && !ziel::ist_atlas(&url)
+                && !ziel::ist_lokal(&url);
+            if !fremd {
+                return;
+            }
+            log::info!("Fenster {} auf fremder Seite gelandet, öffne im Browser", w.label());
+            extern_oeffnen(app, &url);
+            if w.label() == HAUPT {
+                let zurueck = app
+                    .state::<Zustand>()
+                    .letzte_atlas_url
+                    .lock()
+                    .unwrap()
+                    .clone()
+                    .unwrap_or_else(|| ziel::start_url().clone());
+                let _ = w.navigate(zurueck);
+            } else {
+                let _ = w.close();
+            }
+        }
+        PageLoadEvent::Finished => {
+            if w.label() == HAUPT && ziel::ist_atlas(&url) {
+                *app.state::<Zustand>().letzte_atlas_url.lock().unwrap() = Some(url);
+            }
+        }
+    }
+}
+
+/// Ein Nebenfenster, das noch leer ist (about:blank) und nur als Sprungbrett für
+/// eine fremde Seite diente — etwa der Bank-Login — wird geschlossen, sobald die
+/// Seite im Browser offen ist.
+fn leeres_nebenfenster_schliessen(app: &AppHandle, label: &str) {
+    if !label.starts_with(NEBEN_PREFIX) {
+        return;
+    }
+    let Some(w) = app.get_webview_window(label) else {
+        return;
+    };
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        let leer = w
+            .url()
+            .map(|u| u.scheme() == "about" || u.as_str().is_empty())
+            .unwrap_or(true);
+        if leer {
+            let _ = w.close();
+        }
+    });
+}
+
+/// Öffnet eine Adresse im Standardbrowser bzw. Standardprogramm.
+pub fn extern_oeffnen(app: &AppHandle, url: &Url) {
+    if !ziel::darf_extern(url) {
+        return;
+    }
+    if ziel::ist_anmeldung(url) {
+        *app.state::<Zustand>().anmeldung_seit.lock().unwrap() = Some(Instant::now());
+        hinweis(
+            app,
+            t(
+                "Die Anmeldung ist im Browser geöffnet. Danach einfach hierher zurückkehren.",
+                "Sign-in opened in your browser. Come back here when you're done.",
+            ),
+        );
+    }
+    if let Err(e) = app.opener().open_url(url.as_str(), None::<&str>) {
+        log::error!("Konnte Adresse nicht extern öffnen: {e}");
+    }
+}
+
+/// Kurzer Hinweis unten im Hauptfenster (gezeichnet von `bruecke.js`).
+pub fn hinweis(app: &AppHandle, text: &str) {
+    if let Some(w) = hauptfenster(app) {
+        let js = format!(
+            "window.__atlasDesktopHinweis && window.__atlasDesktopHinweis({})",
+            serde_json::to_string(text).unwrap_or_default()
+        );
+        let _ = w.eval(js);
+    }
+}
+
+/// Wird das Hauptfenster nach einer Anmeldung im Browser wieder aktiv, Seite neu
+/// laden — die Verbindung ist serverseitig angelegt, Atlas zeigt sie erst nach
+/// dem Neuladen.
+pub fn nach_anmeldung_neu_laden(app: &AppHandle) {
+    let seit = app.state::<Zustand>().anmeldung_seit.lock().unwrap().take();
+    let Some(seit) = seit else { return };
+    // Fokuswechsel direkt beim Öffnen des Browsers ignorieren.
+    if seit.elapsed().as_secs() < 3 {
+        *app.state::<Zustand>().anmeldung_seit.lock().unwrap() = Some(seit);
+        return;
+    }
+    if let Some(w) = hauptfenster(app) {
+        if w.url().map(|u| ziel::ist_atlas(&u)).unwrap_or(false) {
+            let _ = w.eval("location.reload()");
+        }
+    }
+}
+
+/// Atlas-Adresse im Hauptfenster laden — mit Erreichbarkeitsprüfung, sonst
+/// Offline-Seite mit Rücksprungziel.
+pub fn laden(app: &AppHandle, ziel_url: Url) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let Some(w) = hauptfenster(&app) else { return };
+        match erreichbarkeit::pruefen(&ziel_url).await {
+            erreichbarkeit::Ergebnis::Erreichbar => {
+                let _ = w.navigate(ziel_url);
+            }
+            _ => {
+                let _ = w.navigate(ziel::lokale_seite(Some(&ziel_url)));
+            }
+        }
+    });
+}
+
+/// Aktuelle Seite neu laden; bei fehlender Verbindung zur Offline-Seite.
+pub fn neu_laden(app: &AppHandle, w: &WebviewWindow) {
+    match w.url() {
+        Ok(u) if ziel::ist_atlas(&u) && w.label() == HAUPT => laden(app, u),
+        _ => {
+            let _ = w.eval("location.reload()");
+        }
+    }
+}
+
+/// Deep-Link verarbeiten: Fenster nach vorn holen und Ziel laden.
+pub fn deep_link_oeffnen(app: &AppHandle, link: &Url) {
+    let Some(ziel_url) = ziel::deep_link_ziel(link) else {
+        log::warn!("Deep-Link verworfen: {link}");
+        return;
+    };
+    hauptfenster_zeigen(app);
+    // Kommt der Link als Abschluss einer Anmeldung, nicht zusätzlich neu laden.
+    app.state::<Zustand>().anmeldung_seit.lock().unwrap().take();
+    laden(app, ziel_url);
+}
