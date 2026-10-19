@@ -1,0 +1,3 @@
+[install]
+# 24h-Sperre gegen frisch veröffentlichte (womöglich kompromittierte) Pakete — wie in Atlas.
+minimumReleaseAge = 86400

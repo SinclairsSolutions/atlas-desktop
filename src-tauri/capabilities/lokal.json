@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "lokal",
+  "description": "Mitgelieferte Lade- und Offline-Seite: darf nur prüfen, ob Atlas erreichbar ist, und es dann laden.",
+  "windows": ["main"],
+  "permissions": ["allow-verbinden"]
+}

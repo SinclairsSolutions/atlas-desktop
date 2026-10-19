@@ -1,0 +1,73 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Sinclair Atlas",
+  "mainBinaryName": "Sinclair Atlas",
+  "version": "../package.json",
+  "identifier": "com.sinclairs-solutions.atlas",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "windows": [],
+    "withGlobalTauri": false,
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost",
+      "capabilities": ["lokal", "atlas-remote"]
+    },
+    "macOSPrivateApi": false
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg", "nsis"],
+    "createUpdaterArtifacts": true,
+    "category": "Business",
+    "copyright": "© Sinclairs Solutions",
+    "shortDescription": "Sinclair Atlas",
+    "longDescription": "Die Verwaltungsplattform Sinclair Atlas als eigenes Programm.",
+    "publisher": "Sinclairs Solutions",
+    "homepage": "https://sinclair-atlas.com",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "hardenedRuntime": true,
+      "entitlements": "Entitlements.plist",
+      "infoPlist": "Info.plist",
+      "dmg": {
+        "windowSize": { "width": 600, "height": 380 },
+        "appPosition": { "x": 160, "y": 190 },
+        "applicationFolderPosition": { "x": 440, "y": 190 }
+      }
+    },
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["German", "English"],
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["sinclair-atlas"]
+      }
+    },
+    "updater": {
+      "pubkey": "ERSETZEN_DURCH_UPDATER_PUBKEY",
+      "endpoints": [
+        "https://github.com/SinclairsSolutions/atlas-desktop/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Wird von Tauri mit der erzeugten Info.plist zusammengeführt. -->
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>de</string>
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>de</string>
+    <string>en</string>
+  </array>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Atlas nimmt Meetings und Sprachnachrichten auf, wenn du das startest.</string>
+  <key>NSCameraUsageDescription</key>
+  <string>Atlas nutzt die Kamera nur, wenn du ein Foto oder einen Scan aufnimmst.</string>
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>Atlas speichert heruntergeladene Dateien im Download-Ordner.</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>© Sinclairs Solutions</string>
+</dict>
+</plist>

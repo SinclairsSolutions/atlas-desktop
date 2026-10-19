@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  NOCH NICHT AKTIV — vorbereitet für Passkeys / „Tresor per Touch ID entsperren“.
+
+  WebAuthn funktioniert in einer eingebetteten Ansicht nur, wenn die App über
+  „Associated Domains“ mit sinclair-atlas.com verknüpft ist. Dieses Recht ist
+  eingeschränkt: Ohne passendes Provisioning-Profil startet die App nicht.
+
+  Aktivieren (siehe TODO.md, „Passkeys“):
+    1. Im Apple-Developer-Konto für com.sinclairs-solutions.atlas die Fähigkeit
+       „Associated Domains“ einschalten und ein Developer-ID-Provisioning-Profil
+       erzeugen.
+    2. Auf sinclair-atlas.com /.well-known/apple-app-site-association ausliefern.
+    3. In tauri.conf.json "entitlements" auf diese Datei umstellen und das Profil
+       über bundle.macOS.files als Contents/embedded.provisionprofile einbetten.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+  <key>com.apple.security.device.camera</key>
+  <true/>
+  <key>com.apple.developer.associated-domains</key>
+  <array>
+    <string>webcredentials:sinclair-atlas.com</string>
+  </array>
+  <key>com.apple.application-identifier</key>
+  <string>TEAMID.com.sinclairs-solutions.atlas</string>
+  <key>com.apple.developer.team-identifier</key>
+  <string>TEAMID</string>
+</dict>
+</plist>

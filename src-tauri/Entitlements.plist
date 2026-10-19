@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Rechte unter der Hardened Runtime (Pflicht für die Notarisierung).
+  Keine App-Sandbox: Downloads in den Download-Ordner und das Öffnen von Links
+  im Standardbrowser laufen ohne. Passkeys siehe Entitlements.passkeys.plist.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+  <key>com.apple.security.device.camera</key>
+  <true/>
+</dict>
+</plist>
