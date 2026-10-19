@@ -120,7 +120,6 @@
       var ziel = new URLSearchParams(location.search).get("ziel");
       var knopf = document.getElementById("erneut");
       var laeuft = false;
-      var timer = null;
 
       function invoke(cmd, args) {
         var i = window.__TAURI_INTERNALS__;
@@ -147,8 +146,6 @@
           .then(function () {
             laeuft = false;
             knopf.disabled = false;
-            clearTimeout(timer);
-            timer = setTimeout(versuchen, 15000);
           });
       }
 

@@ -159,6 +159,7 @@ fn seite_geladen(app: &AppHandle, w: WebviewWindow, p: PageLoadPayload<'_>) {
             }
         }
         PageLoadEvent::Finished => {
+            log::info!("Fenster {} geladen: {}", w.label(), url.origin().ascii_serialization());
             if w.label() == HAUPT && ziel::ist_atlas(&url) {
                 *app.state::<Zustand>().letzte_atlas_url.lock().unwrap() = Some(url);
             }

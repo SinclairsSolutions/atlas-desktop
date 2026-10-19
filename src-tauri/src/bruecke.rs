@@ -6,7 +6,9 @@
 //! ausschließlich diese vier Befehle aufrufen — keinen Dateizugriff, keine
 //! Shell, keine anderen Plugins.
 
-use tauri::{AppHandle, Webview};
+use std::sync::atomic::Ordering;
+
+use tauri::{AppHandle, Manager, Webview};
 use tauri_plugin_notification::{NotificationExt, PermissionState};
 use url::Url;
 
@@ -91,9 +93,12 @@ pub fn extern_oeffnen(app: AppHandle, webview: Webview, url: String) -> Result<(
     Ok(())
 }
 
-/// Von der Lade-/Offline-Seite: Atlas prüfen und bei Erfolg laden.
+/// Von der Lade-/Offline-Seite: Atlas prüfen und bei Erfolg laden. Schlägt es
+/// fehl, versucht die App es im Hintergrund alle 15 Sekunden weiter — in Rust,
+/// weil WebKit die Timer verdeckter Fenster drosselt.
 #[tauri::command]
 pub async fn verbinden(
+    app: AppHandle,
     webview: Webview,
     zustand: tauri::State<'_, Zustand>,
     ziel_url: Option<String>,
@@ -104,8 +109,28 @@ pub async fn verbinden(
         .or_else(|| zustand.start_ziel.lock().unwrap().take())
         .unwrap_or_else(|| ziel::start_url().clone());
     let ergebnis = erreichbarkeit::pruefen(&ziel_url).await;
+    log::info!("Verbindungsversuch: {ergebnis:?}");
     if ergebnis == erreichbarkeit::Ergebnis::Erreichbar {
         webview.navigate(ziel_url).map_err(|e| e.to_string())?;
+    } else if !zustand.wiederholung_laeuft.swap(true, Ordering::SeqCst) {
+        tauri::async_runtime::spawn(wiederholen(app, webview, ziel_url));
     }
     Ok(ergebnis)
+}
+
+async fn wiederholen(app: AppHandle, webview: Webview, ziel_url: Url) {
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+        // Inzwischen anders weitergegangen (Knopf, Deep-Link)? Dann aufhören.
+        let noch_offline = webview.url().map(|u| ziel::ist_lokal(&u)).unwrap_or(false);
+        if !noch_offline {
+            break;
+        }
+        if erreichbarkeit::pruefen(&ziel_url).await == erreichbarkeit::Ergebnis::Erreichbar {
+            log::info!("Atlas wieder erreichbar");
+            let _ = webview.navigate(ziel_url);
+            break;
+        }
+    }
+    app.state::<Zustand>().wiederholung_laeuft.store(false, Ordering::SeqCst);
 }

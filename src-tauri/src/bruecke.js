@@ -153,6 +153,14 @@
     });
   }
 
+  // `window.open("")` (TIFF-Ansicht, leere Fenster zum Hineinschreiben) kommt
+  // bei Tauri ohne Adresse an und wird verworfen — als about:blank ist es gültig.
+  var urspruenglichOpen = window.open;
+  window.open = function (adresse, ziel, merkmale) {
+    var a = adresse == null || String(adresse) === "" ? "about:blank" : adresse;
+    return urspruenglichOpen.call(window, a, ziel, merkmale);
+  };
+
   // Navigation API (WebKit ab Safari 26, WebView2): erwischt auch
   // `location.href = …` und Formular-Sendungen, bevor die Seite wechselt.
   if (window.navigation && typeof window.navigation.addEventListener === "function") {

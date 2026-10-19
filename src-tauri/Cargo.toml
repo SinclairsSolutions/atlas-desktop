@@ -33,6 +33,7 @@ tokio = { version = "1", features = ["time"] }
 sys-locale = "0.3"
 log = "0.4"
 
+
 [profile.release]
 codegen-units = 1
 lto = true
