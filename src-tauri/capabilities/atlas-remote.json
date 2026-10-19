@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "atlas-remote",
-  "description": "Die Live-Seite von Atlas: nur Mitteilungen, Dock-Zahl und fremde Links im Standardbrowser — kein Datei- oder Systemzugriff.",
+  "description": "Die Live-Seite von Atlas: nur Mitteilungen, Dock-Zahl, Drucken und fremde Links im Standardbrowser — kein Datei- oder Systemzugriff.",
   "windows": ["main", "neben-*"],
   "remote": {
     "urls": ["https://sinclair-atlas.com", "https://www.sinclair-atlas.com"]
@@ -10,6 +10,7 @@
     "allow-mitteilung",
     "allow-mitteilungen-erlauben",
     "allow-kennzahl",
-    "allow-extern-oeffnen"
+    "allow-extern-oeffnen",
+    "allow-drucken"
   ]
 }

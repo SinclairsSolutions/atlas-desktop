@@ -3,7 +3,8 @@
 //
 // Was es tut:
 //  - `window.__ATLAS_DESKTOP__` setzen, damit Atlas die App erkennen kann
-//  - `Notification` → System-Mitteilungen, `navigator.setAppBadge` → Dock-Zahl
+//  - `Notification` → System-Mitteilungen, `navigator.setAppBadge` → Dock-Zahl,
+//    `window.print` → Druckdialog (macOS)
 //  - Klicks und Navigationen zu fremden Adressen in den Standardbrowser
 //  - Hinweis-Leiste bei fehlender Verbindung
 (function () {
@@ -140,6 +141,17 @@
   navigator.clearAppBadge = function () {
     return invoke("kennzahl", { anzahl: null, punkt: false });
   };
+
+  // ---------------------------------------------------------------------------
+  // Drucken (macOS: WebKit ignoriert window.print in eingebetteten Ansichten)
+  // ---------------------------------------------------------------------------
+  if ("__PLATTFORM__" === "macos") {
+    window.print = function () {
+      invoke("drucken").catch(function (e) {
+        console.warn("[atlas-desktop] Drucken fehlgeschlagen", e);
+      });
+    };
+  }
 
   // ---------------------------------------------------------------------------
   // Fremde Adressen → Standardbrowser

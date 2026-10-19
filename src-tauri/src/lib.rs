@@ -50,6 +50,7 @@ pub fn run() {
             bruecke::mitteilungen_erlauben,
             bruecke::kennzahl,
             bruecke::extern_oeffnen,
+            bruecke::drucken,
             bruecke::verbinden,
         ])
         .menu(menue::erstellen)
@@ -67,7 +68,8 @@ pub fn run() {
                         .permission("allow-mitteilung")
                         .permission("allow-mitteilungen-erlauben")
                         .permission("allow-kennzahl")
-                        .permission("allow-extern-oeffnen"),
+                        .permission("allow-extern-oeffnen")
+                        .permission("allow-drucken"),
                 )?;
                 log::warn!("Atlas Desktop lädt {}", ziel::start_url());
             }

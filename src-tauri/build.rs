@@ -7,6 +7,7 @@ fn main() {
             "mitteilungen_erlauben",
             "kennzahl",
             "extern_oeffnen",
+            "drucken",
             "verbinden",
         ]),
     ))

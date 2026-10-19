@@ -3,7 +3,7 @@
 //! `bruecke.js` wird in jede Seite eingespielt, wirkt aber nur auf Atlas-Seiten.
 //! Es ersetzt `Notification` und `navigator.setAppBadge` durch Aufrufe der
 //! Befehle unten. Die Atlas-Seite darf über die Capability `atlas-remote`
-//! ausschließlich diese vier Befehle aufrufen — keinen Dateizugriff, keine
+//! ausschließlich diese fünf Befehle aufrufen — keinen Dateizugriff, keine
 //! Shell, keine anderen Plugins.
 
 use std::sync::atomic::Ordering;
@@ -76,6 +76,13 @@ pub fn kennzahl(app: AppHandle, anzahl: Option<i64>, punkt: Option<bool>) {
     {
         let _ = (punkt, w.set_badge_count(anzahl));
     }
+}
+
+/// `window.print()` — WebKit führt es in eingebetteten Ansichten unter macOS
+/// nicht aus; hier öffnet sich der normale Druckdialog für das Fenster.
+#[tauri::command]
+pub fn drucken(webview: Webview) -> Result<(), String> {
+    webview.print().map_err(|e| e.to_string())
 }
 
 /// Fremde Adresse im Standardbrowser öffnen (für Klicks, die `bruecke.js`
