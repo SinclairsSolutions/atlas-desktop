@@ -45,9 +45,8 @@ Das Repo liegt bisher nur lokal unter `~/Projekte/atlas-desktop` (Branch `main`)
 Damit installierte Apps nur echte Updates annehmen, signiert der Build jedes
 Update-Paket mit einem eigenen Schlüssel.
 
-- [ ] Im Terminal: `cd ~/Projekte/atlas-desktop && bunx tauri signer generate -w ~/.tauri/atlas-desktop.key`
-      (fragt nach einem Passwort).
-- [ ] Den Inhalt von `~/.tauri/atlas-desktop.key.pub` in `src-tauri/tauri.conf.json` bei
+- [x] Schlüssel erzeugt und als Secrets hinterlegt (19.10.2026, `scripts/updater-schluessel.sh`).
+- [x] Den Inhalt von `~/.tauri/atlas-desktop.key.pub` in `src-tauri/tauri.conf.json` bei
       `plugins.updater.pubkey` statt `ERSETZEN_DURCH_UPDATER_PUBKEY` eintragen.
       Der öffentliche Schlüssel ist kein Geheimnis. Du kannst ihn mir auch geben, dann
       trage ich ihn ein und committe.
