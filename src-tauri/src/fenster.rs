@@ -89,6 +89,25 @@ fn titelleiste<'a>(
     }
 }
 
+/// Eigene Fenster (Mail, Kommunikation, Passwörter): schmale, ruhige Titelzeile
+/// von Atlas (40 px, Fenstername in der Mitte) statt der grauen macOS-Leiste;
+/// die Knöpfe sitzen mittig darin.
+fn eigene_titelleiste<'a>(
+    b: WebviewWindowBuilder<'a, tauri::Wry, AppHandle>,
+) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
+    #[cfg(target_os = "macos")]
+    {
+        b.title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true)
+            .traffic_light_position(tauri::LogicalPosition::new(16.0, 13.0))
+            .background_color(tauri::window::Color(247, 248, 246, 255))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        b
+    }
+}
+
 /// Weiteres Atlas-Fenster (Menü „Neues Fenster“) — z. B. zwei Mandanten nebeneinander.
 pub fn weiteres_fenster(app: &AppHandle, url: Url) {
     // Eigene Fenster (Mail, Passwörter) haben keine Seitenleiste — dort bleibt die
@@ -100,7 +119,7 @@ pub fn weiteres_fenster(app: &AppHandle, url: Url) {
         .title("Sinclair Atlas")
         .inner_size(1280.0, 840.0)
         .min_inner_size(720.0, 480.0);
-    let b = if eigenes { b } else { titelleiste(b) };
+    let b = if eigenes { eigene_titelleiste(b) } else { titelleiste(b) };
     if let Err(e) = ausstatten(app, b, label).build() {
         log::error!("Neues Fenster ließ sich nicht öffnen: {e}");
     }
@@ -268,6 +287,9 @@ fn neues_fenster(app: &AppHandle, url: Url, features: NewWindowFeatures) -> NewW
         .inner_size(1100.0, 800.0)
         .min_inner_size(420.0, 320.0)
         .window_features(features);
+        // „Eigenes Fenster“ aus Atlas (…?fenster=1): gleiche Titelzeile wie aus dem Menü.
+        let eigenes = url.query().is_some_and(|q| q.split('&').any(|p| p == "fenster=1"));
+        let b = if eigenes { eigene_titelleiste(b) } else { b };
         return match ausstatten(app, b, label).build() {
             Ok(window) => NewWindowResponse::Create { window },
             Err(e) => {
