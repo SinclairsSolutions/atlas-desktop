@@ -6,6 +6,10 @@
 use tauri::AppHandle;
 
 const SCHWARZ: &[u8] = include_bytes!("../icons/dock-schwarz.png");
+// Weiß als .icns (alle Größen, für kleine Größen kräftiger gezeichnet).
+#[cfg(target_os = "macos")]
+const WEISS: &[u8] = include_bytes!("../icons/dock-weiss.icns");
+#[cfg(not(target_os = "macos"))]
 const WEISS: &[u8] = include_bytes!("../icons/dock-weiss.png");
 
 #[derive(Clone, Copy, PartialEq, Eq)]
