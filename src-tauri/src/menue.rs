@@ -45,6 +45,8 @@ pub fn erstellen<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         true,
         &[
             &MenuItem::with_id(app, "neues-fenster", t("Neues Fenster", "New Window"), true, Some("CmdOrCtrl+N"))?,
+            &MenuItem::with_id(app, "fenster-mail", t("Mail in eigenem Fenster", "Mail in Own Window"), true, Some("CmdOrCtrl+Shift+M"))?,
+            &MenuItem::with_id(app, "fenster-passwoerter", t("Passwörter in eigenem Fenster", "Passwords in Own Window"), true, Some("CmdOrCtrl+Shift+P"))?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "belege-eingang", t("Belege in den Eingang …", "Receipts to Inbox …"), true, Some("CmdOrCtrl+Shift+U"))?,
             &MenuItem::with_id(app, "bildschirmfoto", t("Bildschirmfoto in den Eingang", "Screenshot to Inbox"), true, Some("CmdOrCtrl+Shift+6"))?,
@@ -213,6 +215,29 @@ pub fn ereignis(app: &AppHandle, event: MenuEvent) {
         "belege-eingang" => return crate::eingang::auswaehlen(app),
         "bildschirmfoto" => return crate::eingang::bildschirmfoto(app),
         _ => {}
+    }
+    if id == "fenster-mail" || id == "fenster-passwoerter" {
+        // Workspace des aktiven Fensters, sonst die persönliche Sicht (Universe).
+        let basis = fenster::aktives_fenster(app)
+            .and_then(|w| w.url().ok())
+            .filter(ziel::ist_atlas)
+            .unwrap_or_else(|| ziel::start_url().clone());
+        let ws = basis
+            .path_segments()
+            .and_then(|mut p| (p.next() == Some("workspaces")).then(|| p.next().map(str::to_string)).flatten())
+            .filter(|w| w.len() == 36);
+        let pfad = match (id, ws) {
+            ("fenster-mail", Some(w)) => format!("/workspaces/{w}/communication/mail"),
+            ("fenster-mail", None) => "/universe/mail".to_string(),
+            (_, Some(w)) => format!("/workspaces/{w}/passwords"),
+            (_, None) => "/universe/passwoerter".to_string(),
+        };
+        let mut url = basis.clone();
+        url.set_path(&pfad);
+        url.set_query(Some("fenster=1"));
+        url.set_fragment(None);
+        fenster::weiteres_fenster(app, url);
+        return;
     }
     if id == "neues-fenster" {
         // Aktuelle Atlas-Seite des aktiven Fensters, sonst die Startseite.

@@ -89,13 +89,17 @@ fn titelleiste<'a>(
 
 /// Weiteres Atlas-Fenster (Menü „Neues Fenster“) — z. B. zwei Mandanten nebeneinander.
 pub fn weiteres_fenster(app: &AppHandle, url: Url) {
+    // Eigene Fenster (Mail, Passwörter) haben keine Seitenleiste — dort bleibt die
+    // normale Titelleiste, sonst lägen die Fensterknöpfe über dem Inhalt.
+    let eigenes = url.query().is_some_and(|q| q.split('&').any(|p| p == "fenster=1"));
     let n = app.state::<Zustand>().fenster_zaehler.fetch_add(1, Ordering::Relaxed);
     let label = format!("{NEBEN_PREFIX}{n}");
     let b = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url))
         .title("Sinclair Atlas")
         .inner_size(1280.0, 840.0)
         .min_inner_size(720.0, 480.0);
-    if let Err(e) = ausstatten(app, titelleiste(b), label).build() {
+    let b = if eigenes { b } else { titelleiste(b) };
+    if let Err(e) = ausstatten(app, b, label).build() {
         log::error!("Neues Fenster ließ sich nicht öffnen: {e}");
     }
 }
