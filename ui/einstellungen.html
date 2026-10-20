@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Einstellungen</title>
+  <link rel="stylesheet" href="gemeinsam.css" />
+  <style>
+    main { padding: 0 20px 20px; }
+    .kopf { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .kopf img { width: 30px; height: 30px; }
+  </style>
+</head>
+<body>
+  <div class="zieh" data-tauri-drag-region></div>
+  <main>
+    <div class="kopf" data-tauri-drag-region>
+      <img class="logo" src="logo.png" alt="" />
+      <div><h1 data-de="Einstellungen" data-en="Settings">Einstellungen</h1><div class="leise" id="version"></div></div>
+    </div>
+
+    <section class="karte">
+      <h2 data-de="Mitteilungen" data-en="Notifications">Mitteilungen</h2>
+      <div class="zeile"><div class="t"><b data-de="Mitteilungen von Atlas" data-en="Notifications from Atlas">Mitteilungen von Atlas</b><span class="leise" data-de="Chat, Erwähnungen, Aufgaben, Downloads" data-en="Chat, mentions, tasks, downloads">Chat, Erwähnungen, Aufgaben, Downloads</span></div>
+        <div class="knoepfe"><button id="erlauben" data-de="Erlauben" data-en="Allow">Erlauben</button><button id="testen" data-de="Testen" data-en="Test">Testen</button></div></div>
+      <div class="zeile"><div class="t"><b data-de="Zahl am App-Symbol" data-en="Badge on app icon">Zahl am App-Symbol</b><span class="leise" data-de="Ungelesene Mitteilungen im Dock" data-en="Unread notifications in the Dock">Ungelesene Mitteilungen im Dock</span></div>
+        <label class="schalter"><input type="checkbox" id="dockZahl" /><span></span></label></div>
+    </section>
+
+    <section class="karte">
+      <h2 data-de="Darstellung" data-en="Appearance">Darstellung</h2>
+      <div class="zeile"><div class="t"><b data-de="App-Symbol" data-en="App icon">App-Symbol</b></div>
+        <div class="wahl" id="symbol"><button data-wert="schwarz" data-de="Schwarz" data-en="Black">Schwarz</button><button data-wert="weiss" data-de="Weiß" data-en="White">Weiß</button></div></div>
+      <div class="zeile"><div class="t"><b data-de="Symbol in der Menüleiste" data-en="Menu bar icon">Symbol in der Menüleiste</b><span class="leise" data-de="Belege, Bildschirmfoto, Schnellerfassung" data-en="Receipts, screenshot, quick capture">Belege, Bildschirmfoto, Schnellerfassung</span></div>
+        <label class="schalter"><input type="checkbox" id="menueleiste" /><span></span></label></div>
+      <div class="zeile"><div class="t"><b data-de="Tastenkürzel ⌥⌘A" data-en="Shortcut ⌥⌘A">Tastenkürzel ⌥⌘A</b><span class="leise" data-de="Schnellerfassung von überall" data-en="Quick capture from anywhere">Schnellerfassung von überall</span></div>
+        <label class="schalter"><input type="checkbox" id="kuerzel" /><span></span></label></div>
+    </section>
+
+    <section class="karte">
+      <h2 data-de="Belege in den Eingang" data-en="Receipts to inbox">Belege in den Eingang</h2>
+      <div class="zeile"><div class="t"><b data-de="Überwachter Ordner" data-en="Watched folder">Überwachter Ordner</b><span class="pfad" id="ordnerPfad"></span></div>
+        <div class="knoepfe"><button id="ordnerWaehlen" data-de="Wählen …" data-en="Choose …">Wählen …</button><button id="ordnerZeigen" data-de="Zeigen" data-en="Show">Zeigen</button><button id="ordnerWeg" data-de="Entfernen" data-en="Remove">Entfernen</button></div></div>
+      <div class="zeile"><div class="t"><b data-de="Warteschlange" data-en="Queue">Warteschlange</b><span class="leise" id="wartend"></span></div>
+        <button id="senden" data-de="Jetzt senden" data-en="Send now">Jetzt senden</button></div>
+      <div class="leise" data-de="Aufs Dock-Symbol ziehen oder in den Ordner legen — die Belege landen im Posteingang des Workspace, den du gerade offen hast. Ohne Netz warten sie hier und gehen später raus." data-en="Drag onto the Dock icon or drop into the folder — receipts go to the inbox of the workspace you have open. Offline they wait here and are sent later.">Aufs Dock-Symbol ziehen oder in den Ordner legen — die Belege landen im Posteingang des Workspace, den du gerade offen hast. Ohne Netz warten sie hier und gehen später raus.</div>
+    </section>
+
+    <section class="karte">
+      <h2 data-de="Exporte" data-en="Exports">Exporte</h2>
+      <div class="zeile"><div class="t"><b data-de="Export-Ordner" data-en="Export folder">Export-Ordner</b><span class="pfad" id="exportPfad"></span></div>
+        <div class="knoepfe"><button id="exportWaehlen" data-de="Wählen …" data-en="Choose …">Wählen …</button><button id="exportWeg" data-de="Entfernen" data-en="Remove">Entfernen</button></div></div>
+      <div class="zeile"><div class="t"><b data-de="Unterordner je Mandant" data-en="Subfolder per client">Unterordner je Mandant</b><span class="leise" data-de="PDF, Excel, DATEV nach Workspace sortiert" data-en="PDF, Excel, DATEV sorted by workspace">PDF, Excel, DATEV nach Workspace sortiert</span></div>
+        <label class="schalter"><input type="checkbox" id="jeMandant" /><span></span></label></div>
+    </section>
+
+    <section class="karte">
+      <h2 data-de="Sicherheit" data-en="Security">Sicherheit</h2>
+      <div class="zeile"><div class="t"><b data-de="Mit Touch ID schützen" data-en="Protect with Touch ID">Mit Touch ID schützen</b><span class="leise" id="touchHinweis" data-de="Beim Öffnen und nach Abwesenheit entsperren" data-en="Unlock on open and after being away">Beim Öffnen und nach Abwesenheit entsperren</span></div>
+        <label class="schalter"><input type="checkbox" id="touch" /><span></span></label></div>
+      <div class="zeile"><div class="t"><b data-de="Wieder sperren nach" data-en="Lock again after">Wieder sperren nach</b></div>
+        <select id="minuten"><option value="0" data-de="nur beim Öffnen" data-en="only on open">nur beim Öffnen</option><option value="5">5 min</option><option value="15">15 min</option><option value="60">60 min</option></select></div>
+    </section>
+
+    <section class="karte">
+      <h2 data-de="Start" data-en="Startup">Start</h2>
+      <div class="zeile"><div class="t"><b data-de="Beim Anmelden starten" data-en="Open at login">Beim Anmelden starten</b></div>
+        <label class="schalter"><input type="checkbox" id="autostart" /><span></span></label></div>
+    </section>
+    <div class="meldung" id="meldung"></div>
+  </main>
+  <script src="sprache.js"></script>
+  <script src="einstellungen.js"></script>
+</body>
+</html>

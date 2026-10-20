@@ -1,13 +1,17 @@
 mod aktualisierung;
 mod bruecke;
 mod downloads;
+mod eingang;
+mod einstellungen;
 mod erreichbarkeit;
 mod fenster;
 mod menue;
+mod sperre;
 mod symbol;
 #[cfg(windows)]
 mod taskleiste;
 mod texte;
+mod werkzeuge;
 mod ziel;
 mod zustand;
 
@@ -45,6 +49,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .manage(einstellungen::Speicher::default())
+        .manage(eingang::Eingang::default())
+        .manage(sperre::Zustand::default())
         .manage(zustand::Zustand::default())
         .invoke_handler(tauri::generate_handler![
             bruecke::mitteilung,
@@ -54,12 +66,26 @@ pub fn run() {
             bruecke::drucken,
             bruecke::verbinden,
             downloads::datei_speichern,
+            eingang::dateien_erledigt,
+            sperre::touch_id_pruefen,
+            sperre::entsperren,
+            sperre::geraet_geheimnis,
+            werkzeuge::einstellungen_lesen,
+            werkzeuge::einstellungen_setzen,
+            werkzeuge::autostart_setzen,
+            werkzeuge::ordner_waehlen,
+            werkzeuge::mitteilung_testen,
+            werkzeuge::ordner_zeigen,
+            werkzeuge::warteschlange_senden,
+            werkzeuge::notiz_senden,
+            werkzeuge::beleg_auswaehlen,
+            werkzeuge::bildschirmfoto,
         ])
         .menu(menue::erstellen)
         .on_menu_event(menue::ereignis)
         .setup(|app| {
             let handle = app.handle().clone();
-            symbol::setzen(&handle, symbol::gemerkt(&handle), false);
+            *app.state::<einstellungen::Speicher>().0.lock().unwrap() = einstellungen::laden(&handle);
 
             if ziel::ist_uebersteuert() {
                 // Nur Debug: lokale Atlas-Instanz bekommt dieselben Brückenrechte.
@@ -73,7 +99,11 @@ pub fn run() {
                         .permission("allow-kennzahl")
                         .permission("allow-extern-oeffnen")
                         .permission("allow-drucken")
-                        .permission("allow-datei-speichern"),
+                        .permission("allow-datei-speichern")
+                        .permission("allow-dateien-erledigt")
+                        .permission("allow-touch-id-pruefen")
+                        .permission("allow-geraet-geheimnis")
+                        .permission("core:window:allow-start-dragging"),
                 )?;
                 log::warn!("Atlas Desktop lädt {}", ziel::start_url());
             }
@@ -99,6 +129,9 @@ pub fn run() {
             }
 
             fenster::hauptfenster_bauen(&handle)?;
+            werkzeuge::anwenden(&handle, None);
+            sperre::beim_start(&handle);
+            eingang::starten(handle.clone());
             aktualisierung::starten(handle);
             Ok(())
         })
@@ -111,8 +144,13 @@ pub fn run() {
                 api.prevent_close();
                 let _ = window.hide();
             }
-            WindowEvent::Focused(true) if window.label() == fenster::HAUPT => {
-                fenster::nach_anmeldung_neu_laden(window.app_handle());
+            WindowEvent::Focused(fokus) => {
+                sperre::fokus(window.app_handle(), window.label(), *fokus);
+                if *fokus && window.label() == fenster::HAUPT {
+                    fenster::nach_anmeldung_neu_laden(window.app_handle());
+                    // Seite geladen und im Vordergrund: wartende Belege übergeben.
+                    eingang::abarbeiten(window.app_handle());
+                }
             }
             _ => {}
         })
@@ -122,6 +160,11 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             if let RunEvent::Reopen { .. } = event {
                 fenster::hauptfenster_zeigen(app);
+            }
+            // Dateien aufs Dock-Symbol gezogen bzw. „Öffnen mit → Sinclair Atlas“.
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            if let RunEvent::Opened { urls } = &event {
+                eingang::geoeffnet(app, urls);
             }
             let _ = (app, event);
         });

@@ -37,8 +37,81 @@
       // Deep-Link-Schema für Rücksprünge aus dem Browser, z. B.
       // "__SCHEMA__://open/workspaces/<id>/communication/mail"
       schema: "__SCHEMA__",
+      // Fähigkeiten, nach denen Atlas fragen kann.
+      kann: Object.freeze({ eingang: true, notiz: true, touchId: "__PLATTFORM__" === "macos", fensterZiehen: true }),
+      /** Touch ID (macOS) — Promise<boolean>. */
+      touchId: function (grund) {
+        return invoke("touch_id_pruefen", { grund: String(grund || "") }).catch(function () {
+          return false;
+        });
+      },
+      /** Gerätegeheimnis für den Passwort-Tresor (Touch ID + Schlüsselbund) — Promise<string base64>. */
+      geraetGeheimnis: "__PLATTFORM__" === "macos"
+        ? function (id, anlegen) {
+            return invoke("geraet_geheimnis", { id: String(id), anlegen: !!anlegen });
+          }
+        : null,
+      /** Bestätigung der Eingangs-Uploads (Dateien aus Dock, Ordner, Menüleiste). */
+      dateienErledigt: function (erledigt, fehler, ziel) {
+        return invoke("dateien_erledigt", {
+          erledigt: erledigt || [],
+          fehler: fehler || [],
+          ziel: ziel ? String(ziel) : null,
+        }).catch(function () {});
+      },
     }),
     enumerable: false,
+  });
+
+  // macOS: Atlas reicht bis unter die Fensterknöpfe (Titelleiste „Overlay“).
+  // Atlas lässt dafür oben Platz (Klasse) und markiert ziehbare Flächen.
+  try {
+    document.documentElement.classList.add("atlas-desktop");
+    if ("__PLATTFORM__" === "macos") document.documentElement.classList.add("atlas-desktop-mac");
+  } catch (_) {}
+
+  // Ziehfläche über dem oberen Rand der Seitenleiste (dort sitzen die
+  // Fensterknöpfe). Die Kopfleiste markiert Atlas selbst (data-tauri-drag-region).
+  if ("__PLATTFORM__" === "macos") {
+    var streifen = null;
+    var streifenAnpassen = function () {
+      var leiste = document.querySelector('[data-sidebar="sidebar"]');
+      if (!document.body) return;
+      if (!streifen) {
+        streifen = document.createElement("div");
+        streifen.setAttribute("data-tauri-drag-region", "");
+        streifen.style.cssText = "position:fixed;top:0;left:0;height:28px;z-index:2147483000;";
+        document.body.appendChild(streifen);
+      }
+      var b = leiste ? Math.round(leiste.getBoundingClientRect().width) : 0;
+      streifen.style.width = Math.max(b, 78) + "px";
+    };
+    var beobachten = function () {
+      streifenAnpassen();
+      try {
+        new ResizeObserver(streifenAnpassen).observe(document.body);
+        new MutationObserver(streifenAnpassen).observe(document.body, { childList: true, subtree: false });
+      } catch (_) {}
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", beobachten);
+    else beobachten();
+    window.addEventListener("resize", streifenAnpassen);
+    setInterval(streifenAnpassen, 1500);
+  }
+
+  // Eingang: Die App übergibt Dateien (Dock, überwachter Ordner, Menüleiste,
+  // Bildschirmfoto). Atlas hört auf „atlas-desktop-dateien“, lädt mit der
+  // Anmeldung der Person hoch und bestätigt über dateienErledigt.
+  Object.defineProperty(window, "__atlasDesktopDateien", {
+    value: function (dateien) {
+      window.dispatchEvent(new CustomEvent("atlas-desktop-dateien", { detail: { dateien: dateien || [] } }));
+    },
+  });
+  // Schnellerfassung: Text als Aufgabe oder Notiz.
+  Object.defineProperty(window, "__atlasDesktopNotiz", {
+    value: function (notiz) {
+      window.dispatchEvent(new CustomEvent("atlas-desktop-notiz", { detail: notiz || {} }));
+    },
   });
 
   // ---------------------------------------------------------------------------
@@ -202,7 +275,12 @@
         return r.arrayBuffer();
       })
       .then(function (puffer) {
-        return invoke("datei_speichern", { name: name || "Download", inhalt: alsBase64(puffer) });
+        var k = window.__ATLAS_KONTEXT__ || {};
+        return invoke("datei_speichern", {
+          name: name || "Download",
+          inhalt: alsBase64(puffer),
+          mandant: k.workspaceName ? String(k.workspaceName) : null,
+        });
       })
       .catch(function (e) {
         console.warn("[Atlas Desktop] Download fehlgeschlagen", e);

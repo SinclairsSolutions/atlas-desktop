@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Sinclair Atlas</title>
+  <link rel="stylesheet" href="gemeinsam.css" />
+  <style>
+    body { display: grid; place-items: center; min-height: 100vh; }
+    .karte { width: 320px; text-align: center; padding: 28px 24px; }
+    .logo { width: 54px; height: 54px; margin-bottom: 10px; }
+    button { margin-top: 16px; padding: 9px 18px; }
+  </style>
+</head>
+<body data-tauri-drag-region>
+  <div class="karte">
+    <img class="logo" src="logo.png" alt="" />
+    <h1 data-de="Atlas ist gesperrt" data-en="Atlas is locked">Atlas ist gesperrt</h1>
+    <div class="leise" data-de="Mit Touch ID oder deinem Mac-Passwort entsperren." data-en="Unlock with Touch ID or your Mac password.">Mit Touch ID oder deinem Mac-Passwort entsperren.</div>
+    <button class="haupt" id="los" data-de="Entsperren" data-en="Unlock">Entsperren</button>
+    <div class="meldung" id="meldung"></div>
+  </div>
+  <script src="sprache.js"></script>
+  <script src="sperre.js"></script>
+</body>
+</html>

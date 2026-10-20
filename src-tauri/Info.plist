@@ -16,6 +16,26 @@
   <string>Atlas nutzt die Kamera nur, wenn du ein Foto oder einen Scan aufnimmst.</string>
   <key>NSDownloadsFolderUsageDescription</key>
   <string>Atlas speichert heruntergeladene Dateien im Download-Ordner.</string>
+  <!-- Belege aufs Dock-Symbol ziehen: die App nimmt PDFs und Bilder an
+       (Rang „Alternate“ — sie wird nie Standard-Programm für diese Dateien). -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Beleg</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>com.adobe.pdf</string>
+        <string>public.image</string>
+        <string>public.xml</string>
+        <string>com.apple.mail.email</string>
+      </array>
+    </dict>
+  </array>
   <key>NSHumanReadableCopyright</key>
   <string>© Sinclairs Solutions</string>
 </dict>

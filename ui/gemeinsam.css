@@ -1,0 +1,62 @@
+/* Gemeinsame Gestaltung der mitgelieferten Fenster: weich, Milchglas. */
+:root {
+  color-scheme: light dark;
+  --text: #1f2a24; --leise: #5b6b62; --grund-a: #eef2ec; --grund-b: #dde7df;
+  --glas: rgba(255,255,255,.66); --glas-rand: rgba(255,255,255,.55);
+  --feld: rgba(255,255,255,.75); --akzent: #24533f; --akzent-text: #fff; --warn: #b4572e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #e8efe9; --leise: #a3b3a9; --grund-a: #101814; --grund-b: #18261f;
+    --glas: rgba(30,44,37,.6); --glas-rand: rgba(255,255,255,.08); --feld: rgba(255,255,255,.06);
+    --akzent: #8cc7a7; --akzent-text: #0f1a14; --warn: #e6a07a;
+  }
+  .logo { filter: invert(1); }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(40rem 30rem at 10% 0%, rgba(140,199,167,.28), transparent 60%),
+    radial-gradient(36rem 26rem at 100% 100%, rgba(196,164,104,.16), transparent 60%),
+    linear-gradient(160deg, var(--grund-a), var(--grund-b));
+  -webkit-user-select: none; user-select: none; cursor: default;
+}
+.zieh { height: 30px; } /* Platz unter den Fensterknöpfen, ziehbar */
+h1 { font-size: 18px; margin: 0 0 4px; font-weight: 650; }
+.leise { color: var(--leise); font-size: 12.5px; }
+.karte {
+  background: var(--glas); border-radius: 18px; padding: 14px 16px; margin: 0 0 12px;
+  box-shadow: 0 14px 40px -24px rgba(20,40,30,.4), inset 0 0 0 1px var(--glas-rand);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3); backdrop-filter: blur(20px) saturate(1.3);
+}
+.karte h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--leise); margin: 0 0 8px; font-weight: 600; }
+.zeile { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
+.zeile + .zeile { border-top: 1px solid rgba(127,127,127,.12); }
+.zeile .t { min-width: 0; }
+.zeile .t b { font-weight: 550; display: block; }
+button, select {
+  font: inherit; border: 0; border-radius: 12px; padding: 6px 12px; cursor: pointer;
+  background: var(--feld); color: var(--text); box-shadow: inset 0 0 0 1px rgba(127,127,127,.18);
+}
+button.haupt { background: var(--akzent); color: var(--akzent-text); box-shadow: none; }
+button:disabled { opacity: .45; cursor: default; }
+.schalter { position: relative; width: 38px; height: 22px; flex: none; }
+.schalter input { opacity: 0; width: 0; height: 0; }
+.schalter span { position: absolute; inset: 0; border-radius: 22px; background: rgba(127,127,127,.3); transition: .2s; }
+.schalter span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.schalter input:checked + span { background: var(--akzent); }
+.schalter input:checked + span::after { transform: translateX(16px); }
+.pfad { font-size: 12px; color: var(--leise); word-break: break-all; }
+.knoepfe { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.wahl { display: flex; gap: 6px; }
+.wahl button.an { background: var(--akzent); color: var(--akzent-text); box-shadow: none; }
+textarea {
+  width: 100%; font: inherit; color: var(--text); background: var(--feld); border: 0; border-radius: 14px;
+  padding: 10px 12px; resize: none; outline: none; box-shadow: inset 0 0 0 1px rgba(127,127,127,.18);
+  -webkit-user-select: text; user-select: text;
+}
+.meldung { font-size: 12.5px; min-height: 18px; color: var(--leise); }
+.meldung.fehler { color: var(--warn); }

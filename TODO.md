@@ -1,11 +1,34 @@
 # TODO — Atlas Desktop
 
-Stand 19.10.2026. Die App ist gebaut und lokal auf dem Mac (Apple Silicon) getestet.
+Stand 20.10.2026 (Version 0.2.0). Gebaut und lokal auf dem Mac (Apple Silicon) getestet;
+Releases werden von GitHub Actions signiert und notarisiert.
 Hier steht, was **du** erledigen musst, was noch **getestet** werden muss, was für
 **Windows** offen ist und welche **Annahmen** ich getroffen habe.
 
-Am Atlas-Code wurde nichts geändert. Was Atlas für eine bessere Einbindung
-bräuchte, steht unten unter „Atlas — nur notiert“.
+Seit 0.2.0 arbeitet Atlas mit der App zusammen (Posteingang, Schnellerfassung,
+Mitteilungen, Dock-Zahl, Touch ID für den Tresor, Kopfleiste) — siehe Abschnitt 0.
+
+---
+
+## 0. Was die App kann (0.2.0)
+
+| Bereich | Wie | Wo es landet |
+| --- | --- | --- |
+| Belege aufs Dock-Symbol ziehen | PDF/Bild/XML/EML auf das Symbol | Posteingang des gerade offenen Workspace (ohne Workspace: Auswahl-Dialog) |
+| Überwachter Ordner | Einstellungen → Ordner wählen; neue Dateien alle 20 s | wie oben; Original wandert danach nach `Hochgeladen/` |
+| Menüleiste | Belege …, Bildschirmfoto, Schnellerfassung, Einstellungen | Belege/Fotos → Posteingang; Schnellerfassung → Aufgabe |
+| Schnellerfassung | ⌥⌘A von überall; erste Zeile = Titel | Aufgabe (Tag „Schnellerfassung“) bzw. Notiz (Tag „Notiz“) |
+| Offline | Warteschlange im App-Datenordner, neuer Versuch alle 20 s | geht raus, sobald Atlas geladen und angemeldet ist |
+| Exporte | Blob-Downloads (PDF, Excel, DATEV) | Download-Ordner oder Export-Ordner, auf Wunsch je Mandant |
+| Fenster | ⌘N neues Fenster, Kopfleiste ziehbar, Titelleiste als Overlay | — |
+| Mitteilungen | Atlas sendet im Hintergrund System-Mitteilungen | Mitteilungszentrale |
+| Dock-Zahl | ungelesene Mitteilungen der Glocke | abschaltbar |
+| App-Symbol | Schwarz / Weiß (Darstellung → App-Symbol oder Einstellungen) | — |
+| Touch ID | App-Sperre (Start + nach Abwesenheit) und Tresor entsperren | Gerätegeheimnis im macOS-Schlüsselbund |
+| Start | Beim Anmelden starten | — |
+
+Justieren (mit dir abzustimmen): Zielordner bzw. Zielmodul je Quelle (z. B. Ordner →
+fester Workspace statt „gerade offen“), Unternehmen-Zuordnung beim Upload.
 
 ---
 
@@ -73,15 +96,16 @@ ist. Fehlt etwas, bricht er mit einer klaren Meldung ab.
 
 ### 1.5 Erstes Release
 
-- [ ] `gh workflow run bauen.yml` als Probelauf: Nur Artefakte, dabei prüft der Workflow
-      Signatur, Notarisierung und Universal-Binary.
-- [ ] Danach `git tag v0.1.0 && git push origin v0.1.0` → Release-Entwurf prüfen → *Publish*.
+- [x] Probelauf: Signatur, Notarisierung, Universal-Binary — ok (20.10.2026).
+- [ ] Entwurf **v0.1.0 löschen** (hat den Absturz beim Öffnen neuer Fenster).
+- [ ] Entwurf **v0.2.0** testen (Abschnitt 2) und *Publish*. v0.1.1 kann gelöscht werden,
+      wenn 0.2.0 passt — ab der ersten veröffentlichten Version laufen Updates automatisch.
 
 ### 1.6 Passkeys / Domain-Verknüpfung (für „Tresor per Touch ID entsperren“)
 
-WebAuthn funktioniert in einer eingebetteten Ansicht nur, wenn die App mit der Domain
-verknüpft ist. Solange das fehlt, schlägt in der App „Gerät entsperren“ fehl; das
-Master-Passwort geht weiterhin.
+Seit 0.2.0 entsperrt der Tresor in der App per Touch ID über den Schlüsselbund —
+dafür ist die Domain-Verknüpfung **nicht** mehr nötig. Sie braucht es nur noch, wenn
+Passkeys (auch zum Anmelden) in der App selbst funktionieren sollen.
 
 - [ ] developer.apple.com → Identifiers: App-ID `com.sinclairs-solutions.atlas` anlegen,
       Fähigkeit **Associated Domains** einschalten.

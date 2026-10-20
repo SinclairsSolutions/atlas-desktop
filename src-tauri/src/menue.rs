@@ -46,6 +46,12 @@ pub fn erstellen<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         &[
             &MenuItem::with_id(app, "neues-fenster", t("Neues Fenster", "New Window"), true, Some("CmdOrCtrl+N"))?,
             &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(app, "belege-eingang", t("Belege in den Eingang …", "Receipts to Inbox …"), true, Some("CmdOrCtrl+Shift+U"))?,
+            &MenuItem::with_id(app, "bildschirmfoto", t("Bildschirmfoto in den Eingang", "Screenshot to Inbox"), true, Some("CmdOrCtrl+Shift+6"))?,
+            &MenuItem::with_id(app, "schnellerfassung", t("Schnellerfassung …", "Quick Capture …"), true, None::<&str>)?,
+            #[cfg(not(target_os = "macos"))]
+            &MenuItem::with_id(app, "einstellungen", t("Einstellungen …", "Settings …"), true, Some("Ctrl+,"))?,
+            &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "startseite", t("Startseite", "Home"), true, Some("CmdOrCtrl+Shift+H"))?,
             &MenuItem::with_id(app, "im-browser", t("Im Browser öffnen", "Open in Browser"), true, Some("CmdOrCtrl+Shift+O"))?,
             &MenuItem::with_id(app, "downloads", t("Download-Ordner öffnen", "Open Downloads Folder"), true, Some("CmdOrCtrl+Alt+L"))?,
@@ -152,6 +158,7 @@ pub fn erstellen<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
                 &PredefinedMenuItem::about(app, Some(t("Über Sinclair Atlas", "About Sinclair Atlas")), Some(ueber))?,
                 &PredefinedMenuItem::separator(app)?,
                 &updates,
+                &MenuItem::with_id(app, "einstellungen", t("Einstellungen …", "Settings …"), true, Some("Cmd+,"))?,
                 &PredefinedMenuItem::separator(app)?,
                 &PredefinedMenuItem::services(app, Some(t("Dienste", "Services")))?,
                 &PredefinedMenuItem::separator(app)?,
@@ -193,9 +200,19 @@ pub fn ereignis(app: &AppHandle, event: MenuEvent) {
         return;
     }
     if id == "symbol-schwarz" || id == "symbol-weiss" {
-        let v = if id == "symbol-weiss" { crate::symbol::Variante::Weiss } else { crate::symbol::Variante::Schwarz };
-        crate::symbol::setzen(app, v, true);
+        let alt = crate::einstellungen::aktuell(app);
+        let mut neu = alt.clone();
+        neu.symbol = if id == "symbol-weiss" { "weiss" } else { "schwarz" }.into();
+        crate::einstellungen::speichern(app, &neu);
+        crate::werkzeuge::anwenden(app, Some(&alt));
         return;
+    }
+    match id {
+        "einstellungen" => return crate::werkzeuge::einstellungen_oeffnen(app),
+        "schnellerfassung" => return crate::werkzeuge::notiz_oeffnen(app),
+        "belege-eingang" => return crate::eingang::auswaehlen(app),
+        "bildschirmfoto" => return crate::eingang::bildschirmfoto(app),
+        _ => {}
     }
     if id == "neues-fenster" {
         // Aktuelle Atlas-Seite des aktiven Fensters, sonst die Startseite.

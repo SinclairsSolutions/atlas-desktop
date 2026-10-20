@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "werkzeuge",
+  "description": "Mitgelieferte Fenster Einstellungen, Schnellerfassung und Sperre: Geräteeinstellungen, Ordnerwahl, Touch ID, Schnellnotiz an Atlas.",
+  "windows": [
+    "einstellungen",
+    "notiz",
+    "sperre"
+  ],
+  "permissions": [
+    "core:window:allow-start-dragging",
+    "core:window:allow-close",
+    "allow-einstellungen-lesen",
+    "allow-einstellungen-setzen",
+    "allow-autostart-setzen",
+    "allow-ordner-waehlen",
+    "allow-mitteilung-testen",
+    "allow-ordner-zeigen",
+    "allow-warteschlange-senden",
+    "allow-notiz-senden",
+    "allow-beleg-auswaehlen",
+    "allow-bildschirmfoto",
+    "allow-entsperren",
+    "allow-touch-id-pruefen",
+    "allow-mitteilungen-erlauben"
+  ]
+}

@@ -36,6 +36,14 @@ pub fn hauptfenster(app: &AppHandle) -> Option<WebviewWindow> {
 
 /// Hauptfenster zeigen (Dock-Klick, zweiter Start, Deep-Link).
 pub fn hauptfenster_zeigen(app: &AppHandle) {
+    if app.state::<crate::sperre::Zustand>().gesperrt.load(Ordering::SeqCst) {
+        crate::sperre::sperren(app);
+        if let Some(w) = app.get_webview_window(crate::sperre::SPERRE) {
+            let _ = w.show();
+            let _ = w.set_focus();
+        }
+        return;
+    }
     if let Some(w) = hauptfenster(app) {
         let _ = w.unminimize();
         let _ = w.show();
@@ -60,14 +68,16 @@ pub fn hauptfenster_bauen(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     ausstatten(app, titelleiste(b), HAUPT.to_string()).build()
 }
 
-/// Ruhige Titelleiste (macOS): ohne grauen Balken und ohne Titeltext, in der
-/// Hintergrundfarbe von Atlas — die Ampel-Knöpfe bleiben.
+/// Titelleiste (macOS): kein grauer Balken, kein Titeltext — Atlas reicht bis
+/// unter die Fensterknöpfe.
 fn titelleiste<'a>(
     b: WebviewWindowBuilder<'a, tauri::Wry, AppHandle>,
 ) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
     #[cfg(target_os = "macos")]
     {
-        b.title_bar_style(tauri::TitleBarStyle::Transparent)
+        // Overlay: Atlas reicht bis unter die Fensterknöpfe (Platz dafür lässt
+        // Atlas selbst, siehe styles.css „atlas-desktop-mac“).
+        b.title_bar_style(tauri::TitleBarStyle::Overlay)
             .hidden_title(true)
             .background_color(tauri::window::Color(247, 248, 246, 255))
     }

@@ -96,7 +96,12 @@ fn freier_pfad(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
 /// Download): Die Seite liest die Datei und übergibt sie hier. Gespeichert
 /// wird ausschließlich im Download-Ordner.
 #[tauri::command]
-pub fn datei_speichern(app: AppHandle, name: String, inhalt: String) -> Result<String, String> {
+pub fn datei_speichern(
+    app: AppHandle,
+    name: String,
+    inhalt: String,
+    mandant: Option<String>,
+) -> Result<String, String> {
     use base64::Engine;
     let daten = base64::engine::general_purpose::STANDARD
         .decode(inhalt.as_bytes())
@@ -109,6 +114,7 @@ pub fn datei_speichern(app: AppHandle, name: String, inhalt: String) -> Result<S
     } else {
         None
     }
+    .or_else(|| export_ordner(&app, mandant.as_deref()))
     .or_else(|| app.path().download_dir().ok())
     .ok_or("Download-Ordner nicht gefunden.")?;
     let ziel = freier_pfad(&dir, &sauberer_name(&name));
@@ -122,4 +128,19 @@ pub fn datei_speichern(app: AppHandle, name: String, inhalt: String) -> Result<S
         .body(anzeige.clone())
         .show();
     Ok(anzeige)
+}
+
+/// Export-Ordner aus den Einstellungen, auf Wunsch mit Unterordner je Mandant.
+fn export_ordner(app: &AppHandle, mandant: Option<&str>) -> Option<std::path::PathBuf> {
+    let e = crate::einstellungen::aktuell(app);
+    let basis = std::path::PathBuf::from(e.export_ordner?);
+    if !basis.is_dir() {
+        return None;
+    }
+    let ziel = match mandant.map(sauberer_name).filter(|m| m != "Download") {
+        Some(m) if e.export_je_mandant => basis.join(m),
+        _ => basis,
+    };
+    std::fs::create_dir_all(&ziel).ok()?;
+    Some(ziel)
 }

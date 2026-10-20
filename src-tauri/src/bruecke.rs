@@ -58,7 +58,10 @@ pub fn mitteilungen_erlauben(app: AppHandle) -> String {
 #[tauri::command]
 pub fn kennzahl(app: AppHandle, anzahl: Option<i64>, punkt: Option<bool>) {
     let Some(w) = fenster::hauptfenster(&app) else { return };
-    let anzahl = anzahl.filter(|n| *n > 0);
+    // Einstellung „Zahl am App-Symbol“ aus: immer leeren.
+    let aus = !crate::einstellungen::aktuell(&app).dock_zahl;
+    let anzahl = anzahl.filter(|n| *n > 0 && !aus);
+    let punkt = punkt.filter(|_| !aus);
     #[cfg(target_os = "macos")]
     {
         if punkt.unwrap_or(false) && anzahl.is_none() {
