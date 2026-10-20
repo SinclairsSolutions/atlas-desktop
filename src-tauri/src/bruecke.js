@@ -185,6 +185,55 @@
     });
   }
 
+  // Downloads aus blob:/data:-Adressen (Atlas erzeugt PDFs, Excel, DATEV im
+  // Browser): WebKit meldet sie nicht als Download. Die Brücke liest die Datei
+  // und lässt sie von der App im Download-Ordner speichern.
+  function alsBase64(puffer) {
+    var bytes = new Uint8Array(puffer);
+    var teile = [];
+    for (var i = 0; i < bytes.length; i += 0x8000) {
+      teile.push(String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)));
+    }
+    return btoa(teile.join(""));
+  }
+  function dateiSpeichern(href, name) {
+    return fetch(href)
+      .then(function (r) {
+        return r.arrayBuffer();
+      })
+      .then(function (puffer) {
+        return invoke("datei_speichern", { name: name || "Download", inhalt: alsBase64(puffer) });
+      })
+      .catch(function (e) {
+        console.warn("[Atlas Desktop] Download fehlgeschlagen", e);
+      });
+  }
+  function istSelbstDownload(a) {
+    return a && a.hasAttribute && a.hasAttribute("download") && /^(blob|data):/i.test(a.href || "");
+  }
+  {
+    // Programmatisch: a.click() an einem (oft nicht eingehängten) Link.
+    var urspruenglichKlick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      if (istSelbstDownload(this)) {
+        dateiSpeichern(this.href, this.getAttribute("download"));
+        return;
+      }
+      return urspruenglichKlick.call(this);
+    };
+    // Echte Klicks auf Download-Links.
+    document.addEventListener(
+      "click",
+      function (e) {
+        var a = e.target && e.target.closest ? e.target.closest("a[download]") : null;
+        if (!istSelbstDownload(a)) return;
+        e.preventDefault();
+        dateiSpeichern(a.href, a.getAttribute("download"));
+      },
+      true,
+    );
+  }
+
   // Ältere WebKit-Versionen: wenigstens Link-Klicks. Läuft nach den
   // React-Handlern (Bubble-Phase am document), respektiert deren preventDefault.
   document.addEventListener("click", function (e) {

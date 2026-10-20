@@ -4,6 +4,7 @@ mod downloads;
 mod erreichbarkeit;
 mod fenster;
 mod menue;
+mod symbol;
 #[cfg(windows)]
 mod taskleiste;
 mod texte;
@@ -52,11 +53,13 @@ pub fn run() {
             bruecke::extern_oeffnen,
             bruecke::drucken,
             bruecke::verbinden,
+            downloads::datei_speichern,
         ])
         .menu(menue::erstellen)
         .on_menu_event(menue::ereignis)
         .setup(|app| {
             let handle = app.handle().clone();
+            symbol::setzen(&handle, symbol::gemerkt(&handle), false);
 
             if ziel::ist_uebersteuert() {
                 // Nur Debug: lokale Atlas-Instanz bekommt dieselben Brückenrechte.
@@ -69,7 +72,8 @@ pub fn run() {
                         .permission("allow-mitteilungen-erlauben")
                         .permission("allow-kennzahl")
                         .permission("allow-extern-oeffnen")
-                        .permission("allow-drucken"),
+                        .permission("allow-drucken")
+                        .permission("allow-datei-speichern"),
                 )?;
                 log::warn!("Atlas Desktop lädt {}", ziel::start_url());
             }

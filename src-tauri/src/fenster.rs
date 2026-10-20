@@ -57,7 +57,37 @@ pub fn hauptfenster_bauen(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .inner_size(1360.0, 880.0)
         .min_inner_size(880.0, 560.0)
         .center();
-    ausstatten(app, b, HAUPT.to_string()).build()
+    ausstatten(app, titelleiste(b), HAUPT.to_string()).build()
+}
+
+/// Ruhige Titelleiste (macOS): ohne grauen Balken und ohne Titeltext, in der
+/// Hintergrundfarbe von Atlas — die Ampel-Knöpfe bleiben.
+fn titelleiste<'a>(
+    b: WebviewWindowBuilder<'a, tauri::Wry, AppHandle>,
+) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
+    #[cfg(target_os = "macos")]
+    {
+        b.title_bar_style(tauri::TitleBarStyle::Transparent)
+            .hidden_title(true)
+            .background_color(tauri::window::Color(247, 248, 246, 255))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        b
+    }
+}
+
+/// Weiteres Atlas-Fenster (Menü „Neues Fenster“) — z. B. zwei Mandanten nebeneinander.
+pub fn weiteres_fenster(app: &AppHandle, url: Url) {
+    let n = app.state::<Zustand>().fenster_zaehler.fetch_add(1, Ordering::Relaxed);
+    let label = format!("{NEBEN_PREFIX}{n}");
+    let b = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url))
+        .title("Sinclair Atlas")
+        .inner_size(1280.0, 840.0)
+        .min_inner_size(720.0, 480.0);
+    if let Err(e) = ausstatten(app, titelleiste(b), label).build() {
+        log::error!("Neues Fenster ließ sich nicht öffnen: {e}");
+    }
 }
 
 /// Gemeinsame Ausstattung für Haupt- und Nebenfenster.

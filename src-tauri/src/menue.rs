@@ -44,6 +44,8 @@ pub fn erstellen<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         t("Ablage", "File"),
         true,
         &[
+            &MenuItem::with_id(app, "neues-fenster", t("Neues Fenster", "New Window"), true, Some("CmdOrCtrl+N"))?,
+            &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "startseite", t("Startseite", "Home"), true, Some("CmdOrCtrl+Shift+H"))?,
             &MenuItem::with_id(app, "im-browser", t("Im Browser öffnen", "Open in Browser"), true, Some("CmdOrCtrl+Shift+O"))?,
             &MenuItem::with_id(app, "downloads", t("Download-Ordner öffnen", "Open Downloads Folder"), true, Some("CmdOrCtrl+Alt+L"))?,
@@ -93,6 +95,16 @@ pub fn erstellen<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &MenuItem::with_id(app, "zoom-null", t("Originalgröße", "Actual Size"), true, Some("CmdOrCtrl+0"))?,
             &MenuItem::with_id(app, "zoom-plus", t("Vergrößern", "Zoom In"), true, Some("CmdOrCtrl+="))?,
             &MenuItem::with_id(app, "zoom-minus", t("Verkleinern", "Zoom Out"), true, Some("CmdOrCtrl+-"))?,
+            &PredefinedMenuItem::separator(app)?,
+            &Submenu::with_items(
+                app,
+                t("App-Symbol", "App Icon"),
+                true,
+                &[
+                    &MenuItem::with_id(app, "symbol-schwarz", t("Schwarz", "Black"), true, None::<&str>)?,
+                    &MenuItem::with_id(app, "symbol-weiss", t("Weiß", "White"), true, None::<&str>)?,
+                ],
+            )?,
             &PredefinedMenuItem::separator(app)?,
             #[cfg(target_os = "macos")]
             &PredefinedMenuItem::fullscreen(app, Some(t("Vollbild", "Enter Full Screen")))?,
@@ -178,6 +190,20 @@ pub fn ereignis(app: &AppHandle, event: MenuEvent) {
         if let Ok(u) = Url::parse(ziel::ATLAS_URL) {
             fenster::extern_oeffnen(app, &u);
         }
+        return;
+    }
+    if id == "symbol-schwarz" || id == "symbol-weiss" {
+        let v = if id == "symbol-weiss" { crate::symbol::Variante::Weiss } else { crate::symbol::Variante::Schwarz };
+        crate::symbol::setzen(app, v, true);
+        return;
+    }
+    if id == "neues-fenster" {
+        // Aktuelle Atlas-Seite des aktiven Fensters, sonst die Startseite.
+        let url = fenster::aktives_fenster(app)
+            .and_then(|w| w.url().ok())
+            .filter(ziel::ist_atlas)
+            .unwrap_or_else(|| ziel::start_url().clone());
+        fenster::weiteres_fenster(app, url);
         return;
     }
     if id == "hauptfenster" {

@@ -9,6 +9,7 @@ fn main() {
             "extern_oeffnen",
             "drucken",
             "verbinden",
+            "datei_speichern",
         ]),
     ))
     .expect("tauri-build fehlgeschlagen");
