@@ -10,6 +10,7 @@ fn main() {
             "drucken",
             "verbinden",
             "datei_speichern",
+            "im_finder_zeigen",
             "dateien_erledigt",
             "touch_id_pruefen",
             "entsperren",

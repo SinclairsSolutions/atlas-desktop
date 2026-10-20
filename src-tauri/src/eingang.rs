@@ -18,7 +18,6 @@ use std::{
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
-use tauri_plugin_notification::NotificationExt;
 
 use crate::{einstellungen, fenster, texte::t, ziel, zustand::Zustand};
 
@@ -195,12 +194,7 @@ pub fn dateien_erledigt(app: AppHandle, erledigt: Vec<String>, fehler: Vec<Strin
             Some(z) if !z.is_empty() => format!("{ok} → {z}"),
             _ => format!("{ok}"),
         };
-        let _ = app
-            .notification()
-            .builder()
-            .title(t("Im Atlas-Eingang", "In your Atlas inbox"))
-            .body(text)
-            .show();
+        let _ = crate::mitteilung::zeigen(&app, t("Im Atlas-Eingang", "In your Atlas inbox"), &text);
     }
 }
 

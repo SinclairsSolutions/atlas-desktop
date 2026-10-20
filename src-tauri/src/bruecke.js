@@ -39,6 +39,10 @@
       schema: "__SCHEMA__",
       // Fähigkeiten, nach denen Atlas fragen kann.
       kann: Object.freeze({ eingang: true, notiz: true, touchId: "__PLATTFORM__" === "macos", fensterZiehen: true }),
+      /** Gerade gespeicherte Datei im Finder zeigen (nur nach Namen). */
+      imFinderZeigen: function (name) {
+        return invoke("im_finder_zeigen", { name: String(name || "") });
+      },
       /** Touch ID (macOS) — Promise<boolean>. */
       touchId: function (grund) {
         return invoke("touch_id_pruefen", { grund: String(grund || "") }).catch(function () {

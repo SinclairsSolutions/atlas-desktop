@@ -6,6 +6,7 @@ mod einstellungen;
 mod erreichbarkeit;
 mod fenster;
 mod menue;
+mod mitteilung;
 mod sperre;
 mod symbol;
 #[cfg(windows)]
@@ -66,6 +67,7 @@ pub fn run() {
             bruecke::drucken,
             bruecke::verbinden,
             downloads::datei_speichern,
+            downloads::im_finder_zeigen,
             eingang::dateien_erledigt,
             sperre::touch_id_pruefen,
             sperre::entsperren,
@@ -86,6 +88,7 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             *app.state::<einstellungen::Speicher>().0.lock().unwrap() = einstellungen::laden(&handle);
+            mitteilung::einrichten(&handle);
 
             if ziel::ist_uebersteuert() {
                 // Nur Debug: lokale Atlas-Instanz bekommt dieselben Brückenrechte.
@@ -97,6 +100,7 @@ pub fn run() {
                         .permission("allow-mitteilung")
                         .permission("allow-mitteilungen-erlauben")
                         .permission("allow-kennzahl")
+                        .permission("allow-im-finder-zeigen")
                         .permission("allow-extern-oeffnen")
                         .permission("allow-drucken")
                         .permission("allow-datei-speichern")

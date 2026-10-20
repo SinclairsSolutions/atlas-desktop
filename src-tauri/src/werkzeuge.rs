@@ -7,7 +7,6 @@ use tauri::{
 };
 use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
-use tauri_plugin_notification::NotificationExt;
 
 use crate::{
     eingang, einstellungen::{self, Einstellungen}, fenster, sperre, symbol, texte::t,
@@ -88,7 +87,11 @@ pub async fn einstellungen_setzen(app: AppHandle, neu: Einstellungen) -> Result<
         return Err(t("Touch ID wurde nicht bestätigt.", "Touch ID was not confirmed.").into());
     }
     einstellungen::speichern(&app, &neu);
-    anwenden(&app, Some(&alt));
+    // Menüleisten-Symbole, Dock-Symbol und Kürzel nur auf dem Hauptthread
+    // anfassen — sonst stürzt AppKit beim Entfernen eines Symbols ab.
+    let a = app.clone();
+    app.run_on_main_thread(move || anwenden(&a, Some(&alt)))
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -126,12 +129,12 @@ pub async fn ordner_waehlen(app: AppHandle) -> Option<String> {
 
 #[tauri::command]
 pub fn mitteilung_testen(app: AppHandle) -> Result<(), String> {
-    app.notification()
-        .builder()
-        .title("Sinclair Atlas")
-        .body(t("So sehen Mitteilungen von Atlas aus.", "This is how Atlas notifications look."))
-        .show()
-        .map_err(|e| e.to_string())
+    crate::mitteilung::erlaubnis_anfragen(&app);
+    crate::mitteilung::zeigen(
+        &app,
+        "Sinclair Atlas",
+        t("So sehen Mitteilungen von Atlas aus.", "This is how Atlas notifications look."),
+    )
 }
 
 #[tauri::command]

@@ -24,9 +24,15 @@ pub fn setzen(app: &AppHandle, v: Variante) {
         let app2 = app.clone();
         let _ = app.run_on_main_thread(move || {
             let Some(mtm) = MainThreadMarker::new() else { return };
+            let ns = NSApplication::sharedApplication(mtm);
+            if v == Variante::Schwarz {
+                // Standard: das mitgelieferte Symbol (icon.icns, alle Auflösungen) —
+                // ein zur Laufzeit gesetztes Bild wirkt im Dock unschärfer.
+                unsafe { ns.setApplicationIconImage(None) };
+                return;
+            }
             let daten = NSData::with_bytes(bytes);
             if let Some(bild) = NSImage::initWithData(NSImage::alloc(), &daten) {
-                let ns = NSApplication::sharedApplication(mtm);
                 unsafe { ns.setApplicationIconImage(Some(&bild)) };
             }
             let _ = app2;

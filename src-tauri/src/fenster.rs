@@ -77,10 +77,10 @@ fn titelleiste<'a>(
     {
         // Overlay: Atlas reicht bis unter die Fensterknöpfe (Platz dafür lässt
         // Atlas selbst, siehe styles.css „atlas-desktop-mac“).
-        // Knöpfe senkrecht mittig auf der 48 px hohen Atlas-Kopfleiste.
+        // Knöpfe senkrecht mittig auf der 56 px hohen Atlas-Titelleiste.
         b.title_bar_style(tauri::TitleBarStyle::Overlay)
             .hidden_title(true)
-            .traffic_light_position(tauri::LogicalPosition::new(18.0, 18.0))
+            .traffic_light_position(tauri::LogicalPosition::new(22.0, 21.0))
             .background_color(tauri::window::Color(247, 248, 246, 255))
     }
     #[cfg(not(target_os = "macos"))]
@@ -136,12 +136,21 @@ pub fn passwort_schnell(app: &AppHandle, unter: Option<(f64, f64, f64, f64)>) {
                 .title(t("Passwörter", "Passwords"))
                 .inner_size(PW_BREITE, PW_HOEHE)
                 .resizable(false)
-                .decorations(false)
                 .always_on_top(true)
                 .skip_taskbar(true)
                 .visible(false);
+            // macOS: normales Fenster (runde Ecken, Schatten) mit unsichtbarer
+            // Titelleiste; die drei Knöpfe werden danach ausgeblendet.
+            #[cfg(target_os = "macos")]
+            let b = b.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
+            #[cfg(not(target_os = "macos"))]
+            let b = b.decorations(false);
             let w = match ausstatten(app, b, PASSWORT_SCHNELL.to_string()).build() {
-                Ok(w) => w,
+                Ok(w) => {
+                    #[cfg(target_os = "macos")]
+                    knoepfe_ausblenden(&w);
+                    w
+                }
                 Err(e) => {
                     log::error!("Passwort-Fenster ließ sich nicht öffnen: {e}");
                     return;
@@ -182,6 +191,22 @@ pub fn passwort_schnell(app: &AppHandle, unter: Option<(f64, f64, f64, f64)>) {
     let _ = w.set_focus();
     // Suchfeld gleich bereit — auch beim zweiten Öffnen.
     let _ = w.eval("setTimeout(function(){var e=document.querySelector('input');e&&e.focus();e&&e.select&&e.select();},60)");
+}
+
+/// Fensterknöpfe (Schließen, Minimieren, Zoomen) ausblenden — für das kleine
+/// Passwort-Fenster, das wie ein Menü aussehen soll.
+#[cfg(target_os = "macos")]
+fn knoepfe_ausblenden(w: &WebviewWindow) {
+    use objc2_app_kit::{NSWindow, NSWindowButton};
+    let Ok(zeiger) = w.ns_window() else { return };
+    // SAFETY: Tauri liefert den NSWindow-Zeiger des eben gebauten Fensters;
+    // aufgerufen auf dem Hauptthread (Menüleisten-Ereignis).
+    let fenster: &NSWindow = unsafe { &*(zeiger as *const NSWindow) };
+    for k in [NSWindowButton::CloseButton, NSWindowButton::MiniaturizeButton, NSWindowButton::ZoomButton] {
+        if let Some(b) = fenster.standardWindowButton(k) {
+            b.setHidden(true);
+        }
+    }
 }
 
 /// Gemeinsame Ausstattung für Haupt- und Nebenfenster.

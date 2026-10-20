@@ -9,7 +9,6 @@
 use std::sync::atomic::Ordering;
 
 use tauri::{AppHandle, Manager, Webview};
-use tauri_plugin_notification::{NotificationExt, PermissionState};
 use url::Url;
 
 use crate::{erreichbarkeit, fenster, ziel, zustand::Zustand};
@@ -35,22 +34,15 @@ pub fn skript() -> String {
 pub fn mitteilung(app: AppHandle, titel: String, text: Option<String>) -> Result<(), String> {
     let titel: String = titel.chars().take(200).collect();
     let text: String = text.unwrap_or_default().chars().take(1000).collect();
-    app.notification()
-        .builder()
-        .title(titel)
-        .body(text)
-        .show()
-        .map_err(|e| e.to_string())
+    crate::mitteilung::zeigen(&app, &titel, &text)
 }
 
 #[tauri::command]
 pub fn mitteilungen_erlauben(app: AppHandle) -> String {
-    match app.notification().request_permission() {
-        Ok(PermissionState::Granted) => "granted",
-        Ok(PermissionState::Denied) => "denied",
-        _ => "default",
-    }
-    .into()
+    // macOS fragt beim ersten Mal selbst (Systemdialog); danach entscheidet
+    // die Einstellung in den Systemeinstellungen. Für Atlas gilt das als erlaubt.
+    crate::mitteilung::erlaubnis_anfragen(&app);
+    "granted".into()
 }
 
 /// Zahl am Dock- bzw. Taskleistensymbol. `None` oder 0 entfernt sie,

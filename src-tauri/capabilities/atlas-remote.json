@@ -19,6 +19,7 @@
     "allow-extern-oeffnen",
     "allow-drucken",
     "allow-datei-speichern",
+    "allow-im-finder-zeigen",
     "allow-dateien-erledigt",
     "allow-touch-id-pruefen",
     "core:window:allow-start-dragging",

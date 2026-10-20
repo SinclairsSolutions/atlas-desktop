@@ -2,7 +2,6 @@
 //! das erledigt WebKit bzw. WebView2). Nach Abschluss eine System-Mitteilung.
 
 use tauri::{webview::DownloadEvent, AppHandle, Manager};
-use tauri_plugin_notification::NotificationExt;
 
 use crate::{texte::t, zustand::Zustand};
 
@@ -27,21 +26,16 @@ pub fn ereignis(app: &AppHandle, event: DownloadEvent<'_>) -> bool {
         }
         DownloadEvent::Finished { url, path, success } => {
             let gemerkt = app.state::<Zustand>().downloads.lock().unwrap().remove(url.as_str());
-            let name = path
-                .or(gemerkt)
-                .as_ref()
-                .and_then(|p| p.file_name())
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default();
-            let (titel, text) = if success {
-                (t("Download abgeschlossen", "Download complete"), name)
-            } else {
-                (
-                    t("Download fehlgeschlagen", "Download failed"),
-                    t("Bitte erneut versuchen.", "Please try again.").to_string(),
-                )
-            };
-            let _ = app.notification().builder().title(titel).body(text).show();
+            match path.or(gemerkt) {
+                Some(p) if success => gespeichert(app, &p),
+                _ => {
+                    let _ = crate::mitteilung::zeigen(
+                        app,
+                        t("Download fehlgeschlagen", "Download failed"),
+                        t("Bitte erneut versuchen.", "Please try again."),
+                    );
+                }
+            }
             true
         }
         _ => true,
@@ -121,13 +115,70 @@ pub fn datei_speichern(
     std::fs::write(&ziel, &daten).map_err(|e| e.to_string())?;
     let anzeige = ziel.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     log::info!("Download gespeichert: {} Bytes", daten.len());
-    let _ = app
-        .notification()
-        .builder()
-        .title(t("Download abgeschlossen", "Download complete"))
-        .body(anzeige.clone())
-        .show();
+    gespeichert(&app, &ziel);
     Ok(anzeige)
+}
+
+/// Zuletzt gespeicherte Dateien (für „Im Finder zeigen“ — die Seite bekommt
+/// nur den Dateinamen, nie den vollen Pfad).
+static ZULETZT: std::sync::Mutex<Vec<std::path::PathBuf>> = std::sync::Mutex::new(Vec::new());
+
+/// Nach dem Speichern: Downloads-Stapel im Dock hüpfen lassen (wie Safari)
+/// und Atlas Bescheid geben, damit dort „Gespeichert · Im Finder zeigen“ steht.
+fn gespeichert(app: &AppHandle, pfad: &std::path::Path) {
+    {
+        let mut z = ZULETZT.lock().unwrap();
+        z.push(pfad.to_path_buf());
+        let n = z.len();
+        if n > 30 {
+            z.drain(0..n - 30);
+        }
+    }
+    #[cfg(target_os = "macos")]
+    dock_huepfen(pfad);
+    let name = pfad.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let ordner = pfad
+        .parent()
+        .and_then(|p| p.file_name())
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let js = format!(
+        "window.__atlasDesktopGespeichert && window.__atlasDesktopGespeichert({})",
+        serde_json::json!({ "name": name, "ordner": ordner })
+    );
+    if let Some(w) = crate::fenster::aktives_fenster(app) {
+        let _ = w.eval(&js);
+    }
+}
+
+/// Dock: Downloads-Stapel hüpfen lassen (gleiche Meldung, die Safari schickt).
+#[cfg(target_os = "macos")]
+fn dock_huepfen(pfad: &std::path::Path) {
+    use objc2_foundation::{NSDistributedNotificationCenter, NSString};
+    let center = NSDistributedNotificationCenter::defaultCenter();
+    let name = NSString::from_str("com.apple.DownloadFileFinished");
+    let objekt = NSString::from_str(&pfad.to_string_lossy());
+    unsafe {
+        center.postNotificationName_object(&name, Some(&objekt));
+    }
+}
+
+/// „Im Finder zeigen“ für eine zuletzt gespeicherte Datei (nach Namen).
+#[tauri::command]
+pub fn im_finder_zeigen(name: String) -> Result<(), String> {
+    let pfad = ZULETZT
+        .lock()
+        .unwrap()
+        .iter()
+        .rev()
+        .find(|p| p.file_name().map(|n| n.to_string_lossy() == name.as_str()).unwrap_or(false))
+        .cloned()
+        .ok_or("Datei nicht gefunden.")?;
+    #[cfg(target_os = "macos")]
+    std::process::Command::new("/usr/bin/open").arg("-R").arg(&pfad).spawn().map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    std::process::Command::new("explorer").arg(format!("/select,{}", pfad.display())).spawn().map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 /// Export-Ordner aus den Einstellungen, auf Wunsch mit Unterordner je Mandant.
