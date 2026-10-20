@@ -34,6 +34,7 @@ pub fn setzen(app: &AppHandle, v: Variante) {
     }
     #[cfg(not(target_os = "macos"))]
     {
+        use tauri::Manager;
         if let Ok(bild) = tauri::image::Image::from_bytes(bytes) {
             for w in app.webview_windows().values() {
                 let _ = w.set_icon(bild.clone());
