@@ -242,6 +242,10 @@
   // bei Tauri ohne Adresse an und wird verworfen — als about:blank ist es gültig.
   var urspruenglichOpen = window.open;
   window.open = function (adresse, ziel, merkmale) {
+    if (adresse && window.__atlasDesktopIstDownload && window.__atlasDesktopIstDownload(String(adresse))) {
+      dateiSpeichern(String(adresse), "");
+      return null;
+    }
     var a = adresse == null || String(adresse) === "" ? "about:blank" : adresse;
     return urspruenglichOpen.call(window, a, ziel, merkmale);
   };
@@ -251,6 +255,12 @@
   if (window.navigation && typeof window.navigation.addEventListener === "function") {
     window.navigation.addEventListener("navigate", function (e) {
       var ziel = e.destination && e.destination.url;
+      // location.href = …?dl=1 → selbst speichern statt die Seite zu verlassen.
+      if (ziel && e.cancelable && istDownloadAdresse(ziel)) {
+        e.preventDefault();
+        dateiSpeichern(ziel, "");
+        return;
+      }
       if (!ziel || !istFremdWeb(ziel)) return;
       if (e.downloadRequest != null || !e.cancelable) return;
       e.preventDefault();
@@ -269,15 +279,36 @@
     }
     return btoa(teile.join(""));
   }
+  // Dateiname aus Content-Disposition (filename*=UTF-8''… oder filename="…").
+  function nameAusAntwort(r, href) {
+    var cd = (r && r.headers && r.headers.get("content-disposition")) || "";
+    var m = /filename\*=(?:UTF-8'')?([^;]+)/i.exec(cd);
+    if (m) {
+      try {
+        return decodeURIComponent(m[1].trim().replace(/^"|"$/g, ""));
+      } catch (_) {}
+    }
+    m = /filename="?([^";]+)"?/i.exec(cd);
+    if (m) return m[1].trim();
+    try {
+      var teil = new URL(href, location.href).pathname.split("/").pop();
+      return teil ? decodeURIComponent(teil) : "";
+    } catch (_) {
+      return "";
+    }
+  }
   function dateiSpeichern(href, name) {
-    return fetch(href)
+    var antwort = null;
+    return fetch(href, { credentials: "same-origin" })
       .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        antwort = r;
         return r.arrayBuffer();
       })
       .then(function (puffer) {
         var k = window.__ATLAS_KONTEXT__ || {};
         return invoke("datei_speichern", {
-          name: name || "Download",
+          name: name || nameAusAntwort(antwort, href) || "Download",
           inhalt: alsBase64(puffer),
           mandant: k.workspaceName ? String(k.workspaceName) : null,
         });
@@ -286,9 +317,25 @@
         console.warn("[Atlas Desktop] Download fehlgeschlagen", e);
       });
   }
-  function istSelbstDownload(a) {
-    return a && a.hasAttribute && a.hasAttribute("download") && /^(blob|data):/i.test(a.href || "");
+  // Atlas liefert Dateien über eigene Links aus; „dl=1“ heißt „als Download“.
+  // WebKit zeigt PDFs dann trotzdem an statt sie zu speichern — deshalb holt
+  // die Brücke solche Dateien selbst.
+  function istDownloadAdresse(href) {
+    try {
+      var u = new URL(href, location.href);
+      return (istAtlas(u.href) || u.origin === location.origin) && /(^|&)dl=1(&|$)/.test(u.search.slice(1));
+    } catch (_) {
+      return false;
+    }
   }
+  function istSelbstDownload(a) {
+    if (!a || !a.getAttribute) return false;
+    var href = a.href || "";
+    if (a.hasAttribute("download") && /^(blob|data):/i.test(href)) return true;
+    if (a.hasAttribute("download") && (istAtlas(href) || href.indexOf(location.origin) === 0)) return true;
+    return istDownloadAdresse(href);
+  }
+  window.__atlasDesktopIstDownload = istDownloadAdresse;
   {
     // Programmatisch: a.click() an einem (oft nicht eingehängten) Link.
     var urspruenglichKlick = HTMLAnchorElement.prototype.click;
@@ -303,7 +350,7 @@
     document.addEventListener(
       "click",
       function (e) {
-        var a = e.target && e.target.closest ? e.target.closest("a[download]") : null;
+        var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
         if (!istSelbstDownload(a)) return;
         e.preventDefault();
         dateiSpeichern(a.href, a.getAttribute("download"));

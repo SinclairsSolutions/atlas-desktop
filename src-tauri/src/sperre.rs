@@ -189,7 +189,8 @@ pub async fn geraet_geheimnis(id: String, anlegen: bool) -> Result<String, Strin
         t("Passwort-Tresor entsperren", "Unlock password vault")
     };
     if !pruefen(grund).await {
-        return Err(t("Nicht bestätigt.", "Not confirmed.").into());
+        log::warn!("Tresor: Touch ID nicht bestätigt (anlegen={anlegen})");
+        return Err(t("Touch ID nicht bestätigt.", "Touch ID not confirmed.").into());
     }
     #[cfg(target_os = "macos")]
     {
@@ -199,7 +200,11 @@ pub async fn geraet_geheimnis(id: String, anlegen: bool) -> Result<String, Strin
             let mut roh = [0u8; 32];
             ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), &mut roh)
                 .map_err(|_| "Zufall nicht verfügbar.".to_string())?;
-            set_generic_password(TRESOR_DIENST, &id, &roh).map_err(|e| e.to_string())?;
+            set_generic_password(TRESOR_DIENST, &id, &roh).map_err(|e| {
+                log::error!("Tresor: Schlüsselbund schreiben fehlgeschlagen: {e}");
+                format!("Schlüsselbund: {e}")
+            })?;
+            log::info!("Tresor: Gerätegeheimnis angelegt");
             return Ok(base64::engine::general_purpose::STANDARD.encode(roh));
         }
         let roh = get_generic_password(TRESOR_DIENST, &id)

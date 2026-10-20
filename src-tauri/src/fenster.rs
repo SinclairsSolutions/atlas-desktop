@@ -77,8 +77,10 @@ fn titelleiste<'a>(
     {
         // Overlay: Atlas reicht bis unter die Fensterknöpfe (Platz dafür lässt
         // Atlas selbst, siehe styles.css „atlas-desktop-mac“).
+        // Knöpfe senkrecht mittig auf der 48 px hohen Atlas-Kopfleiste.
         b.title_bar_style(tauri::TitleBarStyle::Overlay)
             .hidden_title(true)
+            .traffic_light_position(tauri::LogicalPosition::new(18.0, 18.0))
             .background_color(tauri::window::Color(247, 248, 246, 255))
     }
     #[cfg(not(target_os = "macos"))]
