@@ -106,6 +106,84 @@ pub fn weiteres_fenster(app: &AppHandle, url: Url) {
     }
 }
 
+/// Passwörter-Schnellzugriff aus der Menüleiste (wie Safari): kleines Fenster
+/// ohne Rahmen unter dem Symbol, geht beim Wegklicken zu. Fängt mit „neben-“
+/// an, damit es dieselben Rechte wie die anderen Atlas-Fenster hat.
+pub const PASSWORT_SCHNELL: &str = "neben-passwoerter-schnell";
+const PW_BREITE: f64 = 380.0;
+const PW_HOEHE: f64 = 500.0;
+
+/// Ein-/ausblenden; `unter` = Rechteck des Menüleisten-Symbols (physisch).
+pub fn passwort_schnell(app: &AppHandle, unter: Option<(f64, f64, f64, f64)>) {
+    if app.state::<crate::sperre::Zustand>().gesperrt.load(Ordering::SeqCst) {
+        crate::sperre::sperren(app);
+        return;
+    }
+    let w = match app.get_webview_window(PASSWORT_SCHNELL) {
+        Some(w) => {
+            if w.is_visible().unwrap_or(false) {
+                let _ = w.hide();
+                return;
+            }
+            w
+        }
+        None => {
+            let mut url = ziel::start_url().clone();
+            url.set_path("/passwoerter-schnell");
+            url.set_query(Some("fenster=1"));
+            url.set_fragment(None);
+            let b = WebviewWindowBuilder::new(app, PASSWORT_SCHNELL, WebviewUrl::External(url))
+                .title(t("Passwörter", "Passwords"))
+                .inner_size(PW_BREITE, PW_HOEHE)
+                .resizable(false)
+                .decorations(false)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .visible(false);
+            let w = match ausstatten(app, b, PASSWORT_SCHNELL.to_string()).build() {
+                Ok(w) => w,
+                Err(e) => {
+                    log::error!("Passwort-Fenster ließ sich nicht öffnen: {e}");
+                    return;
+                }
+            };
+            let w2 = w.clone();
+            w.on_window_event(move |ev| {
+                if let tauri::WindowEvent::Focused(false) = ev {
+                    // Während Touch ID fragt, nicht zugehen.
+                    if !crate::sperre::PRUEFUNG_LAEUFT.load(Ordering::SeqCst) {
+                        let _ = w2.hide();
+                    }
+                }
+            });
+            w
+        }
+    };
+    if let Some((x, y, b, h)) = unter {
+        let faktor = w.scale_factor().unwrap_or(1.0);
+        let breite = PW_BREITE * faktor;
+        let hoehe = PW_HOEHE * faktor;
+        let mut links = (x + b / 2.0 - breite / 2.0).max(8.0 * faktor);
+        let mut oben = y + h + 4.0 * faktor;
+        // Taskleiste unten (Windows) bzw. rechter Bildschirmrand: nach oben/links ausweichen.
+        if let Ok(Some(m)) = w.current_monitor().or_else(|_| w.primary_monitor()) {
+            let (mx, my) = (m.position().x as f64, m.position().y as f64);
+            let (mb, mh) = (m.size().width as f64, m.size().height as f64);
+            if oben + hoehe > my + mh {
+                oben = (y - hoehe - 4.0 * faktor).max(my);
+            }
+            links = links.min(mx + mb - breite - 8.0 * faktor);
+        }
+        let _ = w.set_position(tauri::PhysicalPosition::new(links, oben));
+    } else {
+        let _ = w.center();
+    }
+    let _ = w.show();
+    let _ = w.set_focus();
+    // Suchfeld gleich bereit — auch beim zweiten Öffnen.
+    let _ = w.eval("setTimeout(function(){var e=document.querySelector('input');e&&e.focus();e&&e.select&&e.select();},60)");
+}
+
 /// Gemeinsame Ausstattung für Haupt- und Nebenfenster.
 fn ausstatten<'a>(
     app: &AppHandle,

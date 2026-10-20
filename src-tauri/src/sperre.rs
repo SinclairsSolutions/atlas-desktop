@@ -24,12 +24,19 @@ pub struct Zustand {
     pub weg_seit: Mutex<Option<Instant>>,
 }
 
+/// Läuft gerade eine Touch-ID-Abfrage? Dann verliert das Passwort-Fenster der
+/// Menüleiste kurz den Fokus — und soll dabei nicht zugehen.
+pub static PRUEFUNG_LAEUFT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// Touch ID (mit Mac-Passwort als Ausweg). `true` = bestätigt.
 pub async fn pruefen(grund: &str) -> bool {
-    match anfordern(grund) {
+    PRUEFUNG_LAEUFT.store(true, Ordering::SeqCst);
+    let ok = match anfordern(grund) {
         Some(rx) => rx.await.unwrap_or(false),
         None => false,
-    }
+    };
+    PRUEFUNG_LAEUFT.store(false, Ordering::SeqCst);
+    ok
 }
 
 /// Startet die Abfrage synchron (Objective-C-Objekte bleiben in diesem
@@ -131,7 +138,7 @@ pub async fn entsperren(app: AppHandle) -> bool {
         }
         fenster::hauptfenster_zeigen(&a);
         for (label, w) in a.webview_windows() {
-            if label.starts_with("neben-") {
+            if label.starts_with("neben-") && label != fenster::PASSWORT_SCHNELL {
                 let _ = w.show();
             }
         }

@@ -26,6 +26,8 @@ pub struct Einstellungen {
     pub schnell_kuerzel: bool,
     /// Symbol in der Menüleiste.
     pub menueleiste: bool,
+    /// Zweites Symbol in der Menüleiste: Passwörter-Schnellzugriff (wie Safari).
+    pub passwort_symbol: bool,
 }
 
 impl Default for Einstellungen {
@@ -40,6 +42,7 @@ impl Default for Einstellungen {
             sperre_nach_minuten: 15,
             schnell_kuerzel: true,
             menueleiste: true,
+            passwort_symbol: true,
         }
     }
 }

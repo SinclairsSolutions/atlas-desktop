@@ -10,6 +10,7 @@
     $("version").textContent = "Sinclair Atlas " + stand.version;
     $("dockZahl").checked = e.dockZahl;
     $("menueleiste").checked = e.menueleiste;
+    $("passwortSymbol").checked = e.passwortSymbol;
     $("kuerzel").checked = e.schnellKuerzel;
     $("jeMandant").checked = e.exportJeMandant;
     $("touch").checked = e.touchIdSperre;
@@ -41,6 +42,7 @@
 
   $("dockZahl").onchange = function () { setzen({ dockZahl: this.checked }); };
   $("menueleiste").onchange = function () { setzen({ menueleiste: this.checked }); };
+  $("passwortSymbol").onchange = function () { setzen({ passwortSymbol: this.checked }); };
   $("kuerzel").onchange = function () { setzen({ schnellKuerzel: this.checked }); };
   $("jeMandant").onchange = function () { setzen({ exportJeMandant: this.checked }); };
   $("touch").onchange = function () { setzen({ touchIdSperre: this.checked }); };

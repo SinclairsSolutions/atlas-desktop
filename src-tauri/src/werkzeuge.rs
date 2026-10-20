@@ -2,7 +2,7 @@
 
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::TrayIconBuilder,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
 };
 use tauri_plugin_autostart::ManagerExt as _;
@@ -16,6 +16,7 @@ use crate::{
 pub const EINSTELLUNGEN: &str = "einstellungen";
 pub const NOTIZ: &str = "notiz";
 const TRAY_ID: &str = "atlas-menueleiste";
+const TRAY_PW: &str = "atlas-passwoerter";
 /// Schnellerfassung: ⌥⌘A (Windows: Strg+Alt+A).
 const KUERZEL: &str = "CmdOrCtrl+Alt+A";
 
@@ -102,6 +103,7 @@ pub fn anwenden(app: &AppHandle, alt: Option<&Einstellungen>) {
         crate::bruecke::kennzahl(app.clone(), None, None);
     }
     menueleiste(app, e.menueleiste);
+    passwort_symbol(app, e.passwort_symbol);
     kuerzel(app, e.schnell_kuerzel);
 }
 
@@ -227,6 +229,66 @@ fn menueleiste(app: &AppHandle, an: bool) {
     };
     if let Err(e) = bauen() {
         log::error!("Menüleisten-Symbol: {e}");
+    }
+}
+
+/// Schlüssel-Symbol: Linksklick öffnet den Passwörter-Schnellzugriff,
+/// Rechtsklick ein kleines Menü.
+fn passwort_symbol(app: &AppHandle, an: bool) {
+    if !an {
+        if let Some(t) = app.remove_tray_by_id(TRAY_PW) {
+            drop(t);
+        }
+        if let Some(w) = app.get_webview_window(fenster::PASSWORT_SCHNELL) {
+            let _ = w.close();
+        }
+        return;
+    }
+    if app.tray_by_id(TRAY_PW).is_some() {
+        return;
+    }
+    let bauen = || -> tauri::Result<()> {
+        let menue = Menu::with_items(
+            app,
+            &[
+                &MenuItem::with_id(app, "pw-schnell", t("Passwörter durchsuchen", "Search Passwords"), true, None::<&str>)?,
+                &MenuItem::with_id(app, "pw-fenster", t("Passwörter in eigenem Fenster", "Passwords in Own Window"), true, None::<&str>)?,
+                &PredefinedMenuItem::separator(app)?,
+                &MenuItem::with_id(app, "pw-einstellungen", t("Einstellungen …", "Settings …"), true, None::<&str>)?,
+            ],
+        )?;
+        let bild = tauri::image::Image::from_bytes(include_bytes!("../icons/passwoerter-menueleiste.png"))?;
+        TrayIconBuilder::with_id(TRAY_PW)
+            .icon(bild)
+            .icon_as_template(true)
+            .tooltip(t("Atlas Passwörter", "Atlas Passwords"))
+            .menu(&menue)
+            .show_menu_on_left_click(false)
+            .on_tray_icon_event(|tray, ev| {
+                if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, rect, .. } = ev {
+                    let app = tray.app_handle();
+                    let faktor = app
+                        .primary_monitor()
+                        .ok()
+                        .flatten()
+                        .map(|m| m.scale_factor())
+                        .unwrap_or(1.0);
+                    let pos = rect.position.to_physical::<f64>(faktor);
+                    let groesse = rect.size.to_physical::<f64>(faktor);
+                    fenster::passwort_schnell(app, Some((pos.x, pos.y, groesse.width, groesse.height)));
+                }
+            })
+            .on_menu_event(|app, ev| match ev.id().as_ref() {
+                "pw-schnell" => fenster::passwort_schnell(app, None),
+                "pw-fenster" => crate::menue::eigenes_fenster(app, "fenster-passwoerter"),
+                "pw-einstellungen" => einstellungen_oeffnen(app),
+                _ => {}
+            })
+            .build(app)?;
+        Ok(())
+    };
+    if let Err(e) = bauen() {
+        log::error!("Passwort-Symbol: {e}");
     }
 }
 
