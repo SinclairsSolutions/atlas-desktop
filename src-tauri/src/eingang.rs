@@ -200,7 +200,9 @@ pub fn dateien_erledigt(app: AppHandle, erledigt: Vec<String>, fehler: Vec<Strin
                     let erl = eltern.join(importordner::hochgeladen());
                     let _ = std::fs::create_dir_all(&erl);
                     if let Some(n) = orig.file_name() {
-                        let _ = std::fs::rename(&orig, erl.join(n));
+                        // Gleichnamige, früher hochgeladene Datei nicht überschreiben.
+                        let ziel = crate::downloads::freier_pfad(&erl, &n.to_string_lossy());
+                        let _ = std::fs::rename(&orig, ziel);
                     }
                 }
                 zustand.eingereiht.lock().unwrap().remove(&orig);
@@ -216,7 +218,7 @@ pub fn dateien_erledigt(app: AppHandle, erledigt: Vec<String>, fehler: Vec<Strin
         zustand.unterwegs.lock().unwrap().remove(token);
     }
     if ok > 0 {
-        let text = match ziel {
+        let text = match ziel.map(|z| z.chars().take(200).collect::<String>()) {
             Some(z) if !z.is_empty() => format!("{ok} → {z}"),
             _ => format!("{ok}"),
         };
@@ -248,7 +250,10 @@ fn ordner_scannen(app: &AppHandle, basis: &Path, quelle: &str, ziel: &serde_json
     for e in eintraege.filter_map(Result::ok) {
         let p = e.path();
         let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        if !p.is_file() || unfertig(&name) || !passt(&p) {
+        // Nur echte Dateien: `file_type` folgt keinem Symlink. Ein Link im Ordner
+        // (z. B. „x.pdf“ → ~/.ssh/…) würde sonst die Zieldatei hochladen.
+        let echte_datei = e.file_type().is_ok_and(|t| t.is_file());
+        if !echte_datei || unfertig(&name) || !passt(&p) {
             continue;
         }
         if zustand.eingereiht.lock().unwrap().contains(&p) {

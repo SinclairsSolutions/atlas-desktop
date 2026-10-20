@@ -27,7 +27,10 @@ pub fn ereignis(app: &AppHandle, event: DownloadEvent<'_>) -> bool {
         DownloadEvent::Finished { url, path, success } => {
             let gemerkt = app.state::<Zustand>().downloads.lock().unwrap().remove(url.as_str());
             match path.or(gemerkt) {
-                Some(p) if success => gespeichert(app, &p),
+                Some(p) if success => {
+                    herkunft_markieren(&p, false);
+                    gespeichert(app, &p)
+                }
                 _ => {
                     let _ = crate::mitteilung::zeigen(
                         app,
@@ -53,22 +56,85 @@ pub fn ordner_oeffnen(app: &AppHandle) {
 /// Höchstgröße für Downloads, die die Seite selbst übergibt (Blob/Data-URL).
 const MAX_BYTES: usize = 200 * 1024 * 1024;
 
-/// Dateiname ohne Pfadanteile und Steuerzeichen.
-fn sauberer_name(name: &str) -> String {
-    let n: String = name
+/// Dateiname ohne Pfadanteile und Steuerzeichen, höchstens 200 Byte (Grenze
+/// der Dateisysteme: 255 Byte), ohne Punkte/Leerzeichen am Ende und ohne
+/// reservierte Windows-Namen (CON, NUL, COM1 …).
+pub(crate) fn sauberer_name(name: &str) -> String {
+    let mut n = String::new();
+    for c in name
         .rsplit(['/', '\\'])
         .next()
         .unwrap_or_default()
         .chars()
         .filter(|c| !c.is_control() && !matches!(c, ':' | '*' | '?' | '"' | '<' | '>' | '|'))
-        .take(180)
-        .collect();
-    let n = n.trim().trim_start_matches('.').to_string();
-    if n.is_empty() { "Download".to_string() } else { n }
+    {
+        if n.len() + c.len_utf8() > 200 {
+            break;
+        }
+        n.push(c);
+    }
+    let n = n.trim().trim_start_matches('.').trim_end_matches(['.', ' ']).to_string();
+    if n.is_empty() {
+        return "Download".to_string();
+    }
+    if windows_reserviert(&n) { format!("_{n}") } else { n }
+}
+
+/// CON, PRN, AUX, NUL, COM1–9, LPT1–9 (auch mit Endung) sind unter Windows Geräte.
+pub(crate) fn windows_reserviert(name: &str) -> bool {
+    let stamm = name.split('.').next().unwrap_or("").trim_end().to_ascii_uppercase();
+    matches!(stamm.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ((stamm.starts_with("COM") || stamm.starts_with("LPT"))
+            && stamm.len() == 4
+            && stamm.as_bytes()[3].is_ascii_digit())
+}
+
+/// Herkunft wie bei einem Browser-Download markieren: macOS-Quarantäne bzw.
+/// Windows „Mark of the Web“. Ohne sie prüft Gatekeeper/SmartScreen eine aus
+/// Atlas gespeicherte Datei (z. B. „.command“, „.exe“) beim Öffnen nicht.
+/// `neu`: Datei hat die App selbst geschrieben (sonst schon vorhandene Marke behalten).
+fn herkunft_markieren(pfad: &std::path::Path, neu: bool) {
+    #[cfg(target_os = "macos")]
+    {
+        let xattr = "/usr/bin/xattr";
+        let vorhanden = !neu
+            && std::process::Command::new(xattr)
+                .args(["-p", "com.apple.quarantine"])
+                .arg(pfad)
+                .output()
+                .is_ok_and(|o| o.status.success());
+        if !vorhanden {
+            let zeit = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let wert = format!("0081;{zeit:x};Sinclair Atlas;");
+            if let Err(e) = std::process::Command::new(xattr)
+                .args(["-w", "com.apple.quarantine", &wert])
+                .arg(pfad)
+                .status()
+            {
+                log::warn!("Quarantäne-Marke nicht gesetzt: {e}");
+            }
+        }
+    }
+    #[cfg(windows)]
+    {
+        // WebView2 markiert eigene Downloads selbst.
+        if neu {
+            let mut strom = pfad.as_os_str().to_owned();
+            strom.push(":Zone.Identifier");
+            if let Err(e) = std::fs::write(&strom, "[ZoneTransfer]\r\nZoneId=3\r\n") {
+                log::warn!("Mark of the Web nicht gesetzt: {e}");
+            }
+        }
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
+    let _ = (pfad, neu);
 }
 
 /// Freier Name im Ordner: „Datei.pdf“, „Datei (1).pdf“, …
-fn freier_pfad(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+pub(crate) fn freier_pfad(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
     let p = dir.join(name);
     if !p.exists() {
         return p;
@@ -112,7 +178,17 @@ pub fn datei_speichern(
     .or_else(|| app.path().download_dir().ok())
     .ok_or("Download-Ordner nicht gefunden.")?;
     let ziel = freier_pfad(&dir, &sauberer_name(&name));
-    std::fs::write(&ziel, &daten).map_err(|e| e.to_string())?;
+    // Nur neu anlegen (folgt keinem Symlink, überschreibt nichts).
+    {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&ziel)
+            .map_err(|e| e.to_string())?;
+        f.write_all(&daten).map_err(|e| e.to_string())?;
+    }
+    herkunft_markieren(&ziel, true);
     let anzeige = ziel.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     log::info!("Download gespeichert: {} Bytes", daten.len());
     gespeichert(&app, &ziel);
@@ -177,7 +253,12 @@ pub fn im_finder_zeigen(name: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     std::process::Command::new("/usr/bin/open").arg("-R").arg(&pfad).spawn().map_err(|e| e.to_string())?;
     #[cfg(target_os = "windows")]
-    std::process::Command::new("explorer").arg(format!("/select,{}", pfad.display())).spawn().map_err(|e| e.to_string())?;
+    {
+        // Voller Pfad statt Suche über PATH bzw. den Programmordner.
+        let explorer = std::path::PathBuf::from(std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into()))
+            .join("explorer.exe");
+        std::process::Command::new(explorer).arg(format!("/select,{}", pfad.display())).spawn().map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 

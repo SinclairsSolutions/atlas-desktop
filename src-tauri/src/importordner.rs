@@ -146,7 +146,24 @@ fn sauber(name: &str, ersatz: &str) -> String {
         .take(80)
         .collect();
     let n = n.trim().trim_start_matches('.').trim_end_matches(['.', ' ']).trim().to_string();
-    if n.is_empty() { ersatz.to_string() } else { n }
+    if n.is_empty() {
+        ersatz.to_string()
+    } else if crate::downloads::windows_reserviert(&n) {
+        format!("_{n}")
+    } else {
+        n
+    }
+}
+
+/// Schlüssel aus `.atlas-zuordnung.json` (liegt im Import-Ordner und kann von
+/// Hand oder über einen Sync-Dienst verändert werden): nur „A“ oder „A/B“ mit
+/// einfachen Namen — kein „..“, kein absoluter Pfad, kein Laufwerk.
+fn gueltiger_rel(rel: &str) -> bool {
+    let teile: Vec<&str> = rel.split('/').collect();
+    (1..=2).contains(&teile.len())
+        && teile.iter().all(|t| {
+            !t.is_empty() && !t.starts_with('.') && !t.contains(['\\', ':']) && !t.chars().any(char::is_control)
+        })
 }
 
 fn abs(basis: &Path, rel: &str) -> PathBuf {
@@ -170,10 +187,14 @@ fn blatt_von(rel: &str) -> &str {
 }
 
 fn zuordnung_laden(basis: &Path) -> Zuordnung {
-    std::fs::read(basis.join(ZUORDNUNG))
+    let mut z: Zuordnung = std::fs::read(basis.join(ZUORDNUNG))
         .ok()
         .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    // Ungültige Einträge verwerfen — sonst könnte ein Eintrag wie „..“ oder
+    // (Windows) „C:\Users\…“ einen Ordner außerhalb umbenennen.
+    z.ordner.retain(|k, e| gueltiger_rel(k) && gueltige_id(&e.workspace_id) && e.company_id.as_deref().is_none_or(gueltige_id));
+    z
 }
 
 fn zuordnung_speichern(basis: &Path, z: &Zuordnung) {
@@ -411,4 +432,29 @@ pub fn anzeige(app: &AppHandle) -> Anzeige {
         .unwrap_or_default();
     let inaktiv = z.ordner.iter().filter(|(_, e)| !e.aktiv).map(|(k, _)| k.clone()).collect();
     Anzeige { bekannt: liste.is_some(), workspaces, inaktiv }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zuordnung_nur_einfache_pfade() {
+        assert!(gueltiger_rel("Nordlicht Medien"));
+        assert!(gueltiger_rel("Nordlicht Medien/Firma (2)"));
+        assert!(!gueltiger_rel(".."));
+        assert!(!gueltiger_rel("A/.."));
+        assert!(!gueltiger_rel("/etc"));
+        assert!(!gueltiger_rel(r"C:\Users\x"));
+        assert!(!gueltiger_rel("A/B/C"));
+        assert!(!gueltiger_rel(""));
+    }
+
+    #[test]
+    fn reservierte_namen() {
+        assert_eq!(sauber("CON", "W"), "_CON");
+        assert_eq!(sauber("..", "W"), "W");
+        assert_eq!(crate::downloads::sauberer_name("../../x/nul.txt"), "_nul.txt");
+        assert_eq!(crate::downloads::sauberer_name("bericht.pdf. "), "bericht.pdf");
+    }
 }

@@ -43,6 +43,12 @@ fn lokales_fenster(app: &AppHandle, label: &str, seite: &str, titel: &str, b: f6
 }
 
 pub fn einstellungen_oeffnen(app: &AppHandle) {
+    // Gesperrt: Einstellungen erst nach dem Entsperren (sonst ließe sich dort
+    // die Sperre abschalten).
+    if sperre::ist_gesperrt(app) {
+        sperre::sperren(app);
+        return;
+    }
     lokales_fenster(app, EINSTELLUNGEN, "einstellungen.html", &t("Einstellungen", "Settings"), 820.0, 640.0, Some((680.0, 500.0)));
 }
 
@@ -93,9 +99,27 @@ pub fn einstellungen_lesen(app: AppHandle) -> Stand {
 #[tauri::command]
 pub async fn einstellungen_setzen(app: AppHandle, neu: Einstellungen) -> Result<(), String> {
     let alt = einstellungen::aktuell(&app);
-    // Touch-ID-Sperre einschalten nur nach erfolgreicher Prüfung.
-    if neu.touch_id_sperre && !alt.touch_id_sperre && !sperre::pruefen(t("Touch-ID-Sperre einschalten", "Turn on Touch ID lock")).await {
-        return Err(t("Touch ID wurde nicht bestätigt.", "Touch ID was not confirmed.").into());
+    if sperre::ist_gesperrt(&app) {
+        return Err(t("Atlas ist gesperrt.", "Atlas is locked.").into());
+    }
+    // Touch-ID-Sperre ein- und ausschalten bzw. lockern nur nach erfolgreicher
+    // Prüfung — sonst ließe sich die Sperre ohne Touch ID abstellen.
+    let einschalten = neu.touch_id_sperre && !alt.touch_id_sperre;
+    let lockern = alt.touch_id_sperre
+        && (!neu.touch_id_sperre
+            || (alt.sperre_nach_minuten > 0
+                && (neu.sperre_nach_minuten == 0 || neu.sperre_nach_minuten > alt.sperre_nach_minuten)));
+    let grund = if einschalten {
+        Some(t("Touch-ID-Sperre einschalten", "Turn on Touch ID lock"))
+    } else if lockern {
+        Some(t("Touch-ID-Sperre ändern", "Change Touch ID lock"))
+    } else {
+        None
+    };
+    if let Some(g) = grund {
+        if !sperre::pruefen(g).await {
+            return Err(t("Touch ID wurde nicht bestätigt.", "Touch ID was not confirmed.").into());
+        }
     }
     einstellungen::speichern(&app, &neu);
     if alt.import_ordner != neu.import_ordner || alt.import_je_unternehmen != neu.import_je_unternehmen {
@@ -176,6 +200,13 @@ pub fn mitteilung_testen(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn ordner_zeigen(app: AppHandle, pfad: String) {
     use tauri_plugin_opener::OpenerExt;
+    // Nur die eingestellten Ordner — `open` auf einen beliebigen „Ordner“
+    // würde z. B. ein .app-Paket starten.
+    let e = einstellungen::aktuell(&app);
+    let erlaubt = [e.ueberwachter_ordner, e.export_ordner, e.import_ordner];
+    if !erlaubt.iter().flatten().any(|o| *o == pfad) {
+        return;
+    }
     let p = std::path::PathBuf::from(&pfad);
     if p.is_dir() {
         let _ = app.opener().open_path(pfad, None::<&str>);
@@ -197,6 +228,10 @@ pub fn notiz_senden(app: AppHandle, text: String, art: String) -> Result<(), Str
     }
     let art = if art == "notiz" { "notiz" } else { "aufgabe" };
     let w = fenster::hauptfenster(&app).ok_or("Atlas ist nicht geöffnet.")?;
+    // Nur an die Atlas-Seite übergeben, nie an eine andere Seite im Hauptfenster.
+    if !w.url().is_ok_and(|u| crate::ziel::ist_atlas(&u)) {
+        return Err(t("Atlas ist nicht geöffnet.", "Atlas is not open.").into());
+    }
     let js = format!(
         "window.__atlasDesktopNotiz && window.__atlasDesktopNotiz({})",
         serde_json::json!({ "text": text, "art": art })

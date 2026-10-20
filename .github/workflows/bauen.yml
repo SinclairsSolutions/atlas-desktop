@@ -12,6 +12,10 @@
 #
 # Alle Zugangsdaten kommen aus GitHub-Secrets (Namen wie im Atlas-Repo, siehe
 # TODO.md). Im Repo steht nichts davon.
+#
+# Fremde Actions sind auf Commit-SHAs festgelegt (der Kommentar nennt das Tag):
+# ein umgehängtes Tag könnte sonst Signier- und Updater-Schlüssel abgreifen.
+# Aktualisieren: `git ls-remote https://github.com/<owner>/<repo> refs/tags/<tag>`.
 name: Desktop-App bauen
 
 on:
@@ -32,17 +36,18 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: latest
+          bun-version: "1.4.2"
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
+          toolchain: stable
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
-      - uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: src-tauri -> target
 
@@ -103,7 +108,7 @@ jobs:
           echo "APPLE_SIGNING_IDENTITY=$IDENT" >> "$GITHUB_ENV"
 
       - name: Bauen, signieren, notarisieren (Release-Entwurf bei Tag)
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Notarisierung über Apple-ID + app-spezifisches Passwort (wie im Atlas-Repo).
@@ -132,7 +137,7 @@ jobs:
           lipo -archs "$APP/Contents/MacOS/Sinclair Atlas"
 
       - name: DMG als Artefakt
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Sinclair-Atlas-macOS
           path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
@@ -147,15 +152,17 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: latest
+          bun-version: "1.4.2"
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
 
-      - uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: src-tauri -> target
 
@@ -180,8 +187,8 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Kein Updater-Schlüssel: der Windows-Build erzeugt keine Updater-Pakete
+          # (tauri.windows.ungeliefert.conf.json). Beim Ausliefern wieder ergänzen.
         run: |
           set -euo pipefail
           ZUSATZ=(--config src-tauri/tauri.windows.ungeliefert.conf.json)
@@ -191,7 +198,7 @@ jobs:
           bunx tauri build --bundles nsis "${ZUSATZ[@]}"
 
       - name: Installer als Artefakt
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Sinclair-Atlas-Windows-ungeliefert
           path: src-tauri/target/release/bundle/nsis/*.exe

@@ -96,12 +96,18 @@ pub async fn touch_id_pruefen(grund: Option<String>) -> bool {
     pruefen(&g).await
 }
 
+pub fn ist_gesperrt(app: &AppHandle) -> bool {
+    app.state::<Zustand>().gesperrt.load(Ordering::SeqCst)
+}
+
 /// Alle Atlas-Fenster verbergen und das Sperrfenster zeigen.
+///
+/// Auch bei schon gesperrter App: Fenster erneut verbergen und das
+/// Sperrfenster neu anlegen, falls es von Hand geschlossen wurde — sonst
+/// bliebe die App ohne Weg zum Entsperren.
 pub fn sperren(app: &AppHandle) {
     let z = app.state::<Zustand>();
-    if z.gesperrt.swap(true, Ordering::SeqCst) {
-        return;
-    }
+    z.gesperrt.store(true, Ordering::SeqCst);
     for (label, w) in app.webview_windows() {
         if label != SPERRE {
             let _ = w.hide();
@@ -186,9 +192,14 @@ const TRESOR_DIENST: &str = "com.sinclairs-solutions.atlas.tresor";
 /// bei Apple geht. Das Geheimnis liegt im macOS-Schlüsselbund dieses Macs und
 /// wird nur nach Touch ID bzw. Mac-Passwort herausgegeben.
 #[tauri::command]
-pub async fn geraet_geheimnis(id: String, anlegen: bool) -> Result<String, String> {
+pub async fn geraet_geheimnis(app: AppHandle, id: String, anlegen: bool) -> Result<String, String> {
     if id.len() < 8 || id.len() > 80 || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
         return Err("Ungültige Kennung.".into());
+    }
+    // Bei gesperrter App sind alle Atlas-Fenster verborgen — eine Touch-ID-
+    // Abfrage von dort sähe aus wie die Entsperr-Abfrage. Deshalb ablehnen.
+    if ist_gesperrt(&app) {
+        return Err(t("Atlas ist gesperrt.", "Atlas is locked.").into());
     }
     let grund = if anlegen {
         t("Touch ID für den Passwort-Tresor einrichten", "Set up Touch ID for the password vault")

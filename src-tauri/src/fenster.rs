@@ -110,6 +110,11 @@ fn eigene_titelleiste<'a>(
 
 /// Weiteres Atlas-Fenster (Menü „Neues Fenster“) — z. B. zwei Mandanten nebeneinander.
 pub fn weiteres_fenster(app: &AppHandle, url: Url) {
+    // Gesperrt: kein neues Fenster an der Sperre vorbei (⌘N, Menüleiste).
+    if crate::sperre::ist_gesperrt(app) {
+        crate::sperre::sperren(app);
+        return;
+    }
     // Eigene Fenster (Mail, Passwörter) haben keine Seitenleiste — dort bleibt die
     // normale Titelleiste, sonst lägen die Fensterknöpfe über dem Inhalt.
     let eigenes = url.query().is_some_and(|q| q.split('&').any(|p| p == "fenster=1"));
@@ -244,6 +249,20 @@ fn ausstatten<'a>(
         .on_new_window(move |url, features| neues_fenster(&a2, url, features))
         .on_download(move |_webview, event| downloads::ereignis(&a3, event))
         .on_page_load(move |w, p| seite_geladen(&a4, w, p))
+        // Kamera/Mikrofon nur, wenn das Fenster Atlas zeigt. Ohne diese Regel
+        // gibt WebKit jeder Seite (auch fremden) den Zugriff ohne Rückfrage.
+        .on_permission_request(|w, _art| {
+            use tauri::webview::PermissionResponse;
+            if !w.url().is_ok_and(|u| ziel::ist_atlas(&u)) {
+                PermissionResponse::Deny
+            } else if cfg!(target_os = "macos") {
+                // macOS: wie bisher ohne Rückfrage (die Systemfreigabe gilt ohnehin).
+                PermissionResponse::Allow
+            } else {
+                // Windows: WebView2 fragt wie bisher selbst.
+                PermissionResponse::Default
+            }
+        })
         .on_document_title_changed(move |w, titel| {
             // Das Hauptfenster heißt immer „Sinclair Atlas“; Nebenfenster tragen
             // den Seitentitel (sonst sind sie im Fenster-Menü nicht unterscheidbar).
@@ -255,6 +274,11 @@ fn ausstatten<'a>(
 
 fn navigation_erlaubt(app: &AppHandle, label: &str, url: &Url) -> bool {
     if ziel::ist_atlas(url) || ziel::ist_lokal(url) || ziel::ist_intern(url) {
+        return true;
+    }
+    // macOS: fremde Blob-Adresse kann ein iframe sein (Vorschauen) — der
+    // Hauptframe wird in `seite_geladen` geprüft.
+    if url.scheme() == "blob" && !cfg!(windows) {
         return true;
     }
     if !ziel::darf_extern(url) {
@@ -272,6 +296,10 @@ fn navigation_erlaubt(app: &AppHandle, label: &str, url: &Url) -> bool {
 }
 
 fn neues_fenster(app: &AppHandle, url: Url, features: NewWindowFeatures) -> NewWindowResponse<tauri::Wry> {
+    // Gesperrt: keine Fenster an der Sperre vorbei (Skripte im Hintergrund).
+    if crate::sperre::ist_gesperrt(app) {
+        return NewWindowResponse::Deny;
+    }
     if ziel::ist_atlas(&url) || ziel::ist_intern(&url) {
         // In der App öffnen: Atlas schreibt in manche Fenster direkt hinein
         // (Zweitfenster, TIFF-Ansicht, Bank-Login über about:blank) und braucht
@@ -308,14 +336,17 @@ fn seite_geladen(app: &AppHandle, w: WebviewWindow, p: PageLoadPayload<'_>) {
     let url = p.url().clone();
     match p.event() {
         PageLoadEvent::Started => {
-            let fremd = matches!(url.scheme(), "http" | "https")
-                && !ziel::ist_atlas(&url)
-                && !ziel::ist_lokal(&url);
+            let web = matches!(url.scheme(), "http" | "https");
+            let fremd = (web && !ziel::ist_atlas(&url) && !ziel::ist_lokal(&url))
+                // Blob-Seite eines fremden Ursprungs (aus einem iframe heraus).
+                || (url.scheme() == "blob" && !ziel::ist_intern(&url));
             if !fremd {
                 return;
             }
-            log::info!("Fenster {} auf fremder Seite gelandet, öffne im Browser", w.label());
-            extern_oeffnen(app, &url);
+            log::info!("Fenster {} auf fremder Seite gelandet", w.label());
+            if web {
+                extern_oeffnen(app, &url);
+            }
             if w.label() == HAUPT {
                 let zurueck = app
                     .state::<Zustand>()
@@ -439,7 +470,8 @@ pub fn neu_laden(app: &AppHandle, w: &WebviewWindow) {
 /// Deep-Link verarbeiten: Fenster nach vorn holen und Ziel laden.
 pub fn deep_link_oeffnen(app: &AppHandle, link: &Url) {
     let Some(ziel_url) = ziel::deep_link_ziel(link) else {
-        log::warn!("Deep-Link verworfen: {link}");
+        // Nur Schema und Host ins Protokoll — der Rest kann Kennungen enthalten.
+        log::warn!("Deep-Link verworfen: {}://{}", link.scheme(), link.host_str().unwrap_or_default());
         return;
     };
     hauptfenster_zeigen(app);

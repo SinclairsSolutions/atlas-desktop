@@ -75,8 +75,16 @@ pub fn ist_lokal(url: &Url) -> bool {
 
 /// Adressen ohne eigenen Server: leere Fenster, Blob- und Daten-URLs, die Atlas
 /// selbst erzeugt (PDF-Vorschau, TIFF-Ansicht, Zweitfenster).
+///
+/// Blob-Adressen tragen den Ursprung der Seite, die sie erzeugt hat
+/// („blob:https://sinclair-atlas.com/…“). Nur solche von Atlas zählen — sonst
+/// könnte ein fremdes iframe das Fenster auf eine eigene Blob-Seite lenken.
 pub fn ist_intern(url: &Url) -> bool {
-    matches!(url.scheme(), "about" | "blob" | "data")
+    match url.scheme() {
+        "about" | "data" => true,
+        "blob" => Url::parse(url.path()).is_ok_and(|innen| ist_atlas(&innen) || ist_lokal(&innen)),
+        _ => false,
+    }
 }
 
 pub fn ist_anmeldung(url: &Url) -> bool {
@@ -168,6 +176,14 @@ mod tests {
         assert!(deep_link_ziel(&u("sinclair-atlas://evil.example/x")).is_none());
         assert!(deep_link_ziel(&u("sinclair-atlas://open//evil.example/x")).is_none());
         assert!(deep_link_ziel(&u("https://sinclair-atlas.com/")).is_none());
+    }
+
+    #[test]
+    fn interne_adressen() {
+        assert!(ist_intern(&u("about:blank")));
+        assert!(ist_intern(&u("blob:https://sinclair-atlas.com/1234-abcd")));
+        assert!(!ist_intern(&u("blob:https://evil.example/1234-abcd")));
+        assert!(!ist_intern(&u("blob:null/1234")));
     }
 
     #[test]
