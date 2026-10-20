@@ -28,6 +28,13 @@ pub struct Einstellungen {
     pub menueleiste: bool,
     /// Zweites Symbol in der Menüleiste: Passwörter-Schnellzugriff (wie Safari).
     pub passwort_symbol: bool,
+    /// Wohin Dateien aus Dock, Menüleiste, Bildschirmfoto, Schnellerfassung und
+    /// überwachtem Ordner gehen: "fragen" | "persoenlich" | "aktueller_workspace".
+    pub eingang_ziel: String,
+    /// Import-Ordner (Basis der gespiegelten Workspace-Struktur), `None` = aus.
+    pub import_ordner: Option<String>,
+    /// Im Import-Ordner zusätzlich Unterordner je Unternehmen.
+    pub import_je_unternehmen: bool,
 }
 
 impl Default for Einstellungen {
@@ -43,6 +50,9 @@ impl Default for Einstellungen {
             schnell_kuerzel: true,
             menueleiste: true,
             passwort_symbol: true,
+            eingang_ziel: "fragen".into(),
+            import_ordner: None,
+            import_je_unternehmen: false,
         }
     }
 }

@@ -25,6 +25,9 @@ fn main() {
             "notiz_senden",
             "beleg_auswaehlen",
             "bildschirmfoto",
+            "import_ordner_setzen",
+            "import_ordner_anlegen",
+            "nach_updates_suchen",
         ]),
     ))
     .expect("tauri-build fehlgeschlagen");

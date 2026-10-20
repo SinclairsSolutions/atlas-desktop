@@ -22,6 +22,8 @@
     "allow-bildschirmfoto",
     "allow-entsperren",
     "allow-touch-id-pruefen",
-    "allow-mitteilungen-erlauben"
+    "allow-mitteilungen-erlauben",
+    "allow-import-ordner-anlegen",
+    "allow-nach-updates-suchen"
   ]
 }

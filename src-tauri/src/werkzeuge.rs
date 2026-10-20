@@ -9,7 +9,7 @@ use tauri_plugin_autostart::ManagerExt as _;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use crate::{
-    eingang, einstellungen::{self, Einstellungen}, fenster, sperre, symbol, texte::t,
+    eingang, einstellungen::{self, Einstellungen}, fenster, importordner, sperre, symbol, texte::t,
 };
 
 pub const EINSTELLUNGEN: &str = "einstellungen";
@@ -19,7 +19,8 @@ const TRAY_PW: &str = "atlas-passwoerter";
 /// Schnellerfassung: ⌥⌘A (Windows: Strg+Alt+A).
 const KUERZEL: &str = "CmdOrCtrl+Alt+A";
 
-fn lokales_fenster(app: &AppHandle, label: &str, seite: &str, titel: &str, b: f64, h: f64) {
+/// `min`: Fenster in der Größe veränderbar, nicht kleiner als (Breite, Höhe).
+fn lokales_fenster(app: &AppHandle, label: &str, seite: &str, titel: &str, b: f64, h: f64, min: Option<(f64, f64)>) {
     if let Some(w) = app.get_webview_window(label) {
         let _ = w.show();
         let _ = w.set_focus();
@@ -28,8 +29,12 @@ fn lokales_fenster(app: &AppHandle, label: &str, seite: &str, titel: &str, b: f6
     let bld = WebviewWindowBuilder::new(app, label, WebviewUrl::App(seite.into()))
         .title(titel)
         .inner_size(b, h)
-        .resizable(false)
+        .resizable(min.is_some())
         .center();
+    let bld = match min {
+        Some((mb, mh)) => bld.min_inner_size(mb, mh),
+        None => bld,
+    };
     #[cfg(target_os = "macos")]
     let bld = bld.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
     if let Err(e) = bld.build() {
@@ -38,7 +43,7 @@ fn lokales_fenster(app: &AppHandle, label: &str, seite: &str, titel: &str, b: f6
 }
 
 pub fn einstellungen_oeffnen(app: &AppHandle) {
-    lokales_fenster(app, EINSTELLUNGEN, "einstellungen.html", &t("Einstellungen", "Settings"), 560.0, 680.0);
+    lokales_fenster(app, EINSTELLUNGEN, "einstellungen.html", &t("Einstellungen", "Settings"), 820.0, 640.0, Some((680.0, 500.0)));
 }
 
 pub fn notiz_oeffnen(app: &AppHandle) {
@@ -46,7 +51,7 @@ pub fn notiz_oeffnen(app: &AppHandle) {
         sperre::sperren(app);
         return;
     }
-    lokales_fenster(app, NOTIZ, "notiz.html", &t("Schnellerfassung", "Quick Capture"), 460.0, 300.0);
+    lokales_fenster(app, NOTIZ, "notiz.html", &t("Schnellerfassung", "Quick Capture"), 460.0, 300.0, None);
     if let Some(w) = app.get_webview_window(NOTIZ) {
         let _ = w.set_always_on_top(true);
     }
@@ -65,6 +70,10 @@ pub struct Stand {
     wartend: usize,
     version: String,
     plattform: &'static str,
+    /// Import-Ordner: zuletzt von Atlas gemeldete Workspaces und ihre Ordner.
+    import: importordner::Anzeige,
+    /// Vorschlag für den Import-Ordner („~/Atlas Import“).
+    import_vorschlag: Option<String>,
 }
 
 #[tauri::command]
@@ -76,6 +85,8 @@ pub fn einstellungen_lesen(app: AppHandle) -> Stand {
         wartend: eingang::anzahl(&app),
         version: app.package_info().version.to_string(),
         plattform: std::env::consts::OS,
+        import: importordner::anzeige(&app),
+        import_vorschlag: import_vorschlag(&app).map(|p| p.to_string_lossy().into_owned()),
     }
 }
 
@@ -87,6 +98,9 @@ pub async fn einstellungen_setzen(app: AppHandle, neu: Einstellungen) -> Result<
         return Err(t("Touch ID wurde nicht bestätigt.", "Touch ID was not confirmed.").into());
     }
     einstellungen::speichern(&app, &neu);
+    if alt.import_ordner != neu.import_ordner || alt.import_je_unternehmen != neu.import_je_unternehmen {
+        importordner::abgleichen(&app);
+    }
     // Menüleisten-Symbole, Dock-Symbol und Kürzel nur auf dem Hauptthread
     // anfassen — sonst stürzt AppKit beim Entfernen eines Symbols ab.
     let a = app.clone();
@@ -108,6 +122,28 @@ pub fn anwenden(app: &AppHandle, alt: Option<&Einstellungen>) {
     menueleiste(app, e.menueleiste);
     passwort_symbol(app, e.passwort_symbol);
     kuerzel(app, e.schnell_kuerzel);
+}
+
+fn import_vorschlag(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().home_dir().ok().map(|h| h.join("Atlas Import"))
+}
+
+/// Import-Ordner am vorgeschlagenen Ort anlegen und einschalten.
+#[tauri::command]
+pub fn import_ordner_anlegen(app: AppHandle) -> Result<String, String> {
+    let p = import_vorschlag(&app).ok_or(t("Benutzerordner nicht gefunden.", "Home folder not found."))?;
+    std::fs::create_dir_all(&p).map_err(|e| e.to_string())?;
+    let mut e = einstellungen::aktuell(&app);
+    e.import_ordner = Some(p.to_string_lossy().into_owned());
+    einstellungen::speichern(&app, &e);
+    importordner::abgleichen(&app);
+    Ok(p.to_string_lossy().into_owned())
+}
+
+/// „Nach Updates suchen“ aus dem Einstellungsfenster (wie im App-Menü).
+#[tauri::command]
+pub fn nach_updates_suchen(app: AppHandle) {
+    tauri::async_runtime::spawn(async move { crate::aktualisierung::pruefen(&app, true).await });
 }
 
 #[tauri::command]

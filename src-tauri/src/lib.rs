@@ -5,6 +5,7 @@ mod eingang;
 mod einstellungen;
 mod erreichbarkeit;
 mod fenster;
+mod importordner;
 mod menue;
 mod mitteilung;
 mod sperre;
@@ -57,6 +58,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(einstellungen::Speicher::default())
         .manage(eingang::Eingang::default())
+        .manage(importordner::Import::default())
         .manage(sperre::Zustand::default())
         .manage(zustand::Zustand::default())
         .invoke_handler(tauri::generate_handler![
@@ -69,6 +71,9 @@ pub fn run() {
             downloads::datei_speichern,
             downloads::im_finder_zeigen,
             eingang::dateien_erledigt,
+            importordner::import_ordner_setzen,
+            werkzeuge::import_ordner_anlegen,
+            werkzeuge::nach_updates_suchen,
             sperre::touch_id_pruefen,
             sperre::entsperren,
             sperre::geraet_geheimnis,
@@ -89,6 +94,7 @@ pub fn run() {
             let handle = app.handle().clone();
             *app.state::<einstellungen::Speicher>().0.lock().unwrap() = einstellungen::laden(&handle);
             mitteilung::einrichten(&handle);
+            importordner::laden(&handle);
 
             if ziel::ist_uebersteuert() {
                 // Nur Debug: lokale Atlas-Instanz bekommt dieselben Brückenrechte.
@@ -105,6 +111,7 @@ pub fn run() {
                         .permission("allow-drucken")
                         .permission("allow-datei-speichern")
                         .permission("allow-dateien-erledigt")
+                        .permission("allow-import-ordner-setzen")
                         .permission("allow-touch-id-pruefen")
                         .permission("allow-geraet-geheimnis")
                         .permission("core:window:allow-start-dragging"),

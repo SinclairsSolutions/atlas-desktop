@@ -38,7 +38,7 @@
       // "__SCHEMA__://open/workspaces/<id>/communication/mail"
       schema: "__SCHEMA__",
       // Fähigkeiten, nach denen Atlas fragen kann.
-      kann: Object.freeze({ eingang: true, notiz: true, touchId: "__PLATTFORM__" === "macos", fensterZiehen: true }),
+      kann: Object.freeze({ eingang: true, notiz: true, touchId: "__PLATTFORM__" === "macos", fensterZiehen: true, importOrdner: true }),
       /** Gerade gespeicherte Datei im Finder zeigen (nur nach Namen). */
       imFinderZeigen: function (name) {
         return invoke("im_finder_zeigen", { name: String(name || "") });
@@ -55,6 +55,23 @@
             return invoke("geraet_geheimnis", { id: String(id), anlegen: !!anlegen });
           }
         : null,
+      /**
+       * Import-Ordner: Workspaces (mit Unternehmen), in deren Eingang die Person
+       * schreiben darf — nach der Anmeldung aufrufen.
+       * liste: [{ id, name, unternehmen: [{ id, name }] }]
+       */
+      importOrdnerSetzen: function (liste) {
+        var workspaces = (Array.isArray(liste) ? liste : []).map(function (w) {
+          return {
+            id: String((w && w.id) || ""),
+            name: String((w && w.name) || ""),
+            unternehmen: (w && Array.isArray(w.unternehmen) ? w.unternehmen : []).map(function (u) {
+              return { id: String((u && u.id) || ""), name: String((u && u.name) || "") };
+            }),
+          };
+        });
+        return invoke("import_ordner_setzen", { workspaces: workspaces });
+      },
       /** Bestätigung der Eingangs-Uploads (Dateien aus Dock, Ordner, Menüleiste). */
       dateienErledigt: function (erledigt, fehler, ziel) {
         return invoke("dateien_erledigt", {
@@ -103,9 +120,12 @@
     setInterval(streifenAnpassen, 1500);
   }
 
-  // Eingang: Die App übergibt Dateien (Dock, überwachter Ordner, Menüleiste,
-  // Bildschirmfoto). Atlas hört auf „atlas-desktop-dateien“, lädt mit der
-  // Anmeldung der Person hoch und bestätigt über dateienErledigt.
+  // Eingang: Die App übergibt Dateien (Dock, überwachter Ordner, Import-Ordner,
+  // Menüleiste, Bildschirmfoto). Atlas hört auf „atlas-desktop-dateien“, lädt mit
+  // der Anmeldung der Person hoch und bestätigt über dateienErledigt.
+  // Je Datei: { token, name, mime, inhalt, quelle, ziel } mit ziel
+  //   { art: "persoenlich" } | { art: "workspace", workspaceId, companyId|null }
+  //   | { art: "aktuell" } | { art: "fragen" }
   Object.defineProperty(window, "__atlasDesktopDateien", {
     value: function (dateien) {
       window.dispatchEvent(new CustomEvent("atlas-desktop-dateien", { detail: { dateien: dateien || [] } }));

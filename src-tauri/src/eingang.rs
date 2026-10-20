@@ -19,7 +19,7 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
-use crate::{einstellungen, fenster, texte::t, ziel, zustand::Zustand};
+use crate::{einstellungen, fenster, importordner, texte::t, ziel, zustand::Zustand};
 
 /// Größte Datei, die übergeben wird (Atlas-Upload-Grenze für Belege).
 const MAX_BYTES: u64 = 25 * 1024 * 1024;
@@ -33,6 +33,9 @@ struct Meta {
     /// Herkunft im überwachten Ordner — wird nach dem Upload nach „Hochgeladen“ verschoben.
     original: Option<PathBuf>,
     zeit: u64,
+    /// Ziel in Atlas (siehe `ziel_aus_einstellung`); fehlt bei älteren Einträgen.
+    #[serde(default)]
+    ziel: Option<serde_json::Value>,
 }
 
 #[derive(Default)]
@@ -76,8 +79,30 @@ fn jetzt() -> u64 {
     SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
-/// Datei in die Warteschlange kopieren und gleich versuchen zu senden.
+/// Ziel nach der Einstellung „Wohin gehen neue Belege?“ (Dock, Menüleiste,
+/// Bildschirmfoto, Schnellerfassung, überwachter Ordner).
+fn ziel_aus_einstellung(app: &AppHandle) -> serde_json::Value {
+    match einstellungen::aktuell(app).eingang_ziel.as_str() {
+        "persoenlich" => importordner::ziel_persoenlich(),
+        "aktueller_workspace" => serde_json::json!({ "art": "aktuell" }),
+        _ => serde_json::json!({ "art": "fragen" }),
+    }
+}
+
+/// Datei mit dem Ziel aus den Einstellungen einreihen.
 pub fn einreihen(app: &AppHandle, pfad: &Path, quelle: &str, original: Option<PathBuf>) -> Result<(), String> {
+    let z = ziel_aus_einstellung(app);
+    einreihen_mit_ziel(app, pfad, quelle, original, z)
+}
+
+/// Datei in die Warteschlange kopieren und gleich versuchen zu senden.
+fn einreihen_mit_ziel(
+    app: &AppHandle,
+    pfad: &Path,
+    quelle: &str,
+    original: Option<PathBuf>,
+    ziel: serde_json::Value,
+) -> Result<(), String> {
     let gr = std::fs::metadata(pfad).map_err(|e| e.to_string())?.len();
     if gr == 0 || gr > MAX_BYTES {
         return Err(t("Datei ist leer oder größer als 25 MB.", "File is empty or larger than 25 MB.").into());
@@ -86,7 +111,7 @@ pub fn einreihen(app: &AppHandle, pfad: &Path, quelle: &str, original: Option<Pa
     let name = pfad.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "Beleg".into());
     let token = format!("{:x}{:x}", jetzt(), rand_teil());
     std::fs::copy(pfad, dir.join(format!("{token}.bin"))).map_err(|e| e.to_string())?;
-    let meta = Meta { name, quelle: quelle.into(), original, zeit: jetzt() };
+    let meta = Meta { name, quelle: quelle.into(), original, zeit: jetzt(), ziel: Some(ziel) };
     std::fs::write(dir.join(format!("{token}.json")), serde_json::to_vec(&meta).unwrap_or_default())
         .map_err(|e| e.to_string())?;
     abarbeiten(app);
@@ -142,6 +167,7 @@ pub fn abarbeiten(app: &AppHandle) {
             "name": meta.name,
             "mime": mime(&meta.name),
             "quelle": meta.quelle,
+            "ziel": meta.ziel.unwrap_or_else(|| ziel_aus_einstellung(app)),
             "inhalt": base64::engine::general_purpose::STANDARD.encode(&bytes),
         }));
         // Je Übergabe höchstens ~40 MB bzw. 10 Dateien.
@@ -171,7 +197,7 @@ pub fn dateien_erledigt(app: AppHandle, erledigt: Vec<String>, fehler: Vec<Strin
         if let Some(meta) = std::fs::read(&meta_pfad).ok().and_then(|b| serde_json::from_slice::<Meta>(&b).ok()) {
             if let Some(orig) = meta.original {
                 if let Some(eltern) = orig.parent() {
-                    let erl = eltern.join(t("Hochgeladen", "Uploaded"));
+                    let erl = eltern.join(importordner::hochgeladen());
                     let _ = std::fs::create_dir_all(&erl);
                     if let Some(n) = orig.file_name() {
                         let _ = std::fs::rename(&orig, erl.join(n));
@@ -198,16 +224,31 @@ pub fn dateien_erledigt(app: AppHandle, erledigt: Vec<String>, fehler: Vec<Strin
     }
 }
 
-/// Überwachten Ordner prüfen: neue, fertig geschriebene Dateien einreihen.
+/// Überwachten Ordner und Import-Ordner prüfen: neue, fertig geschriebene
+/// Dateien einreihen.
 fn ordner_pruefen(app: &AppHandle) {
-    let Some(pfad) = einstellungen::aktuell(app).ueberwachter_ordner else { return };
-    let basis = PathBuf::from(pfad);
-    let Ok(eintraege) = std::fs::read_dir(&basis) else { return };
+    if let Some(pfad) = einstellungen::aktuell(app).ueberwachter_ordner {
+        let z = ziel_aus_einstellung(app);
+        ordner_scannen(app, Path::new(&pfad), "ordner", &z);
+    }
+    for (dir, z) in importordner::ordner_mit_ziel(app) {
+        ordner_scannen(app, &dir, "import", &z);
+    }
+}
+
+/// Teilweise geladene bzw. noch geschriebene Dateien (Browser, Sync-Dienste).
+fn unfertig(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    n.starts_with('.') || n.ends_with(".download") || n.ends_with(".crdownload") || n.ends_with(".part")
+}
+
+fn ordner_scannen(app: &AppHandle, basis: &Path, quelle: &str, ziel: &serde_json::Value) {
+    let Ok(eintraege) = std::fs::read_dir(basis) else { return };
     let zustand = app.state::<Eingang>();
     for e in eintraege.filter_map(Result::ok) {
         let p = e.path();
         let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        if !p.is_file() || name.starts_with('.') || name.ends_with(".download") || name.ends_with(".crdownload") || !passt(&p) {
+        if !p.is_file() || unfertig(&name) || !passt(&p) {
             continue;
         }
         if zustand.eingereiht.lock().unwrap().contains(&p) {
@@ -223,11 +264,11 @@ fn ordner_pruefen(app: &AppHandle) {
         if !stabil {
             continue;
         }
-        match einreihen(app, &p, "ordner", Some(p.clone())) {
+        match einreihen_mit_ziel(app, &p, quelle, Some(p.clone()), ziel.clone()) {
             Ok(()) => {
                 zustand.eingereiht.lock().unwrap().insert(p.clone());
             }
-            Err(err) => log::warn!("Überwachter Ordner: {name} nicht eingereiht: {err}"),
+            Err(err) => log::warn!("Ordner ({quelle}): {name} nicht eingereiht: {err}"),
         }
     }
 }

@@ -5,71 +5,224 @@
   <title>Einstellungen</title>
   <link rel="stylesheet" href="gemeinsam.css" />
   <style>
-    main { padding: 0 20px 20px; }
-    .kopf { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-    .kopf img { width: 30px; height: 30px; }
+    html, body { height: 100%; overflow: hidden; }
+    .rahmen { display: grid; grid-template-columns: 216px 1fr; gap: 14px; height: calc(100% - 30px); padding: 0 14px 14px; }
+    nav.reiter {
+      display: flex; flex-direction: column; gap: 4px; padding: 14px 10px; overflow-y: auto;
+      background: var(--glas); border-radius: 20px;
+      box-shadow: 0 14px 40px -24px rgba(20,40,30,.4), inset 0 0 0 1px var(--glas-rand);
+      -webkit-backdrop-filter: blur(20px) saturate(1.3); backdrop-filter: blur(20px) saturate(1.3);
+    }
+    .marke { display: flex; align-items: center; gap: 10px; padding: 2px 8px 14px; }
+    .marke img { width: 28px; height: 28px; }
+    .marke h1 { font-size: 15px; margin: 0; }
+    nav.reiter button {
+      display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+      background: transparent; box-shadow: none; border-radius: 12px; padding: 8px 10px; color: var(--text);
+    }
+    nav.reiter button:hover { background: rgba(127,127,127,.1); }
+    nav.reiter button.an { background: var(--feld); box-shadow: 0 6px 18px -12px rgba(20,40,30,.5), inset 0 0 0 1px var(--glas-rand); font-weight: 600; }
+    .ikon { width: 26px; height: 26px; border-radius: 9px; display: grid; place-items: center; flex: none; color: #fff; }
+    .ikon svg { width: 15px; height: 15px; }
+    .i-gruen { background: linear-gradient(140deg, #3f8f6b, #24533f); }
+    .i-blau { background: linear-gradient(140deg, #5a8fd8, #3461a8); }
+    .i-gold { background: linear-gradient(140deg, #d2a453, #a8742a); }
+    .i-rot { background: linear-gradient(140deg, #e07a6a, #b44a3c); }
+    .i-lila { background: linear-gradient(140deg, #9b7fd6, #6a4fb0); }
+    .i-grau { background: linear-gradient(140deg, #95a39b, #64736b); }
+    .fuss { margin-top: auto; padding: 10px 8px 0; }
+    main.inhalt { overflow-y: auto; padding: 2px 4px 20px 0; }
+    .seite { display: none; }
+    .seite.an { display: block; }
+    .seite > h1 { font-size: 20px; margin: 6px 0 2px; }
+    .seite > .leise.intro { margin: 0 0 14px; font-size: 13px; }
+    .erkl { color: var(--leise); font-size: 12.5px; display: block; margin-top: 2px; max-width: 52ch; }
+    .zeile .t { flex: 1; }
+    .karte > p.leise { margin: 0 0 10px; }
+    .optionen { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .option {
+      display: block; text-align: left; padding: 12px; border-radius: 16px; height: 100%;
+      background: var(--feld); box-shadow: inset 0 0 0 1px rgba(127,127,127,.14);
+    }
+    .option b { display: block; font-weight: 600; margin-bottom: 4px; }
+    .option span { color: var(--leise); font-size: 12.5px; }
+    .option.an { box-shadow: inset 0 0 0 2px var(--akzent), 0 10px 26px -16px rgba(20,40,30,.55); }
+    .option.an b { color: var(--akzent); }
+    .baum { padding: 12px 14px; border-radius: 16px; background: var(--feld); box-shadow: inset 0 0 0 1px rgba(127,127,127,.12); margin: 10px 0; }
+    .baum .z { display: flex; align-items: flex-start; gap: 8px; padding: 3px 0; }
+    .baum .z .n { font-weight: 550; }
+    .baum .z .w { color: var(--leise); font-size: 12px; }
+    .baum .e1 { padding-left: 22px; } .baum .e2 { padding-left: 44px; }
+    .mappe { width: 17px; height: 17px; flex: none; margin-top: 2px; }
+    .m-lila { color: #8b6fd0; } .m-gruen { color: #3f8f6b; } .m-gold { color: #c08f3c; } .m-grau { color: #8e9a93; }
+    .ws-liste { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+    .ws { padding: 8px 12px; border-radius: 12px; background: var(--feld); }
+    .ws .ordner { color: var(--leise); font-size: 12px; }
+    .ws .ws-u { padding-left: 14px; font-size: 12.5px; color: var(--leise); }
+    .hinweis { padding: 10px 12px; border-radius: 14px; background: rgba(140,199,167,.16); font-size: 12.5px; margin-top: 8px; }
+    .hinweis.warn { background: rgba(214,150,96,.16); }
+    .daten { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 13px; margin: 0; }
+    .daten dt { color: var(--leise); } .daten dd { margin: 0; }
+    .unterkopf { margin-top: 14px; }
+    @media (max-width: 760px) { .optionen { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <div class="zieh" data-tauri-drag-region></div>
-  <main>
-    <div class="kopf" data-tauri-drag-region>
-      <img class="logo" src="logo.png" alt="" />
-      <div><h1 data-de="Einstellungen" data-en="Settings">Einstellungen</h1><div class="leise" id="version"></div></div>
-    </div>
+  <div class="rahmen">
+    <nav class="reiter" id="reiter">
+      <div class="marke" data-tauri-drag-region>
+        <img class="logo" src="logo.png" alt="" />
+        <div><h1 data-de="Einstellungen" data-en="Settings">Einstellungen</h1><div class="leise" id="version"></div></div>
+      </div>
+      <button data-reiter="allgemein"><span class="ikon i-gruen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></svg></span><span data-de="Allgemein" data-en="General">Allgemein</span></button>
+      <button data-reiter="eingang"><span class="ikon i-lila"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/></svg></span><span data-de="Eingang &amp; Import" data-en="Inbox &amp; Import">Eingang &amp; Import</span></button>
+      <button data-reiter="export"><span class="ikon i-blau"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg></span><span data-de="Downloads &amp; Export" data-en="Downloads &amp; Export">Downloads &amp; Export</span></button>
+      <button data-reiter="mitteilungen"><span class="ikon i-gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg></span><span data-de="Mitteilungen" data-en="Notifications">Mitteilungen</span></button>
+      <button data-reiter="sicherheit"><span class="ikon i-rot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span><span data-de="Sicherheit" data-en="Security">Sicherheit</span></button>
+      <button data-reiter="ueber"><span class="ikon i-grau"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></span><span data-de="Über" data-en="About">Über</span></button>
+      <div class="fuss"><div class="meldung" id="meldung"></div></div>
+    </nav>
 
-    <section class="karte">
-      <h2 data-de="Mitteilungen" data-en="Notifications">Mitteilungen</h2>
-      <div class="zeile"><div class="t"><b data-de="Mitteilungen von Atlas" data-en="Notifications from Atlas">Mitteilungen von Atlas</b><span class="leise" data-de="Chat, Erwähnungen, Aufgaben, Downloads" data-en="Chat, mentions, tasks, downloads">Chat, Erwähnungen, Aufgaben, Downloads</span></div>
-        <div class="knoepfe"><button id="erlauben" data-de="Erlauben" data-en="Allow">Erlauben</button><button id="testen" data-de="Testen" data-en="Test">Testen</button></div></div>
-      <div class="zeile"><div class="t"><b data-de="Zahl am App-Symbol" data-en="Badge on app icon">Zahl am App-Symbol</b><span class="leise" data-de="Ungelesene Mitteilungen im Dock" data-en="Unread notifications in the Dock">Ungelesene Mitteilungen im Dock</span></div>
-        <label class="schalter"><input type="checkbox" id="dockZahl" /><span></span></label></div>
-    </section>
+    <main class="inhalt">
+      <!-- ============ Allgemein ============ -->
+      <section class="seite" data-seite="allgemein">
+        <h1 data-de="Allgemein" data-en="General">Allgemein</h1>
+        <p class="leise intro" data-de="Wie Atlas auf deinem Rechner aussieht und startet." data-en="How Atlas looks and starts on your computer.">Wie Atlas auf deinem Rechner aussieht und startet.</p>
+        <div class="karte">
+          <h2 data-de="Darstellung" data-en="Appearance">Darstellung</h2>
+          <div class="zeile"><div class="t"><b data-de="App-Symbol" data-en="App icon">App-Symbol</b><span class="erkl" data-de="Die Farbe des Atlas-Symbols im Dock. Reine Geschmackssache." data-en="The colour of the Atlas icon in the Dock. Purely a matter of taste.">Die Farbe des Atlas-Symbols im Dock. Reine Geschmackssache.</span></div>
+            <div class="wahl" id="symbol"><button data-wert="schwarz" data-de="Schwarz" data-en="Black">Schwarz</button><button data-wert="weiss" data-de="Weiß" data-en="White">Weiß</button></div></div>
+          <div class="zeile"><div class="t"><b data-de="Zahl am App-Symbol" data-en="Badge on app icon">Zahl am App-Symbol</b><span class="erkl" data-de="Eine kleine Zahl am Dock-Symbol zeigt, wie viele Mitteilungen du noch nicht gelesen hast." data-en="A small number on the Dock icon shows how many notifications you have not read yet.">Eine kleine Zahl am Dock-Symbol zeigt, wie viele Mitteilungen du noch nicht gelesen hast.</span></div>
+            <label class="schalter"><input type="checkbox" id="dockZahl" /><span></span></label></div>
+        </div>
+        <div class="karte">
+          <h2 data-de="Menüleiste" data-en="Menu bar">Menüleiste</h2>
+          <div class="zeile"><div class="t"><b data-de="Atlas-Symbol in der Menüleiste" data-en="Atlas icon in the menu bar">Atlas-Symbol in der Menüleiste</b><span class="erkl" data-de="Oben rechts am Bildschirmrand. Von dort schickst du schnell Belege oder ein Bildschirmfoto an Atlas, auch wenn das Fenster zu ist." data-en="Top right of your screen. From there you can quickly send receipts or a screenshot to Atlas, even when the window is closed.">Oben rechts am Bildschirmrand. Von dort schickst du schnell Belege oder ein Bildschirmfoto an Atlas, auch wenn das Fenster zu ist.</span></div>
+            <label class="schalter"><input type="checkbox" id="menueleiste" /><span></span></label></div>
+          <div class="zeile"><div class="t"><b data-de="Passwörter in der Menüleiste" data-en="Passwords in the menu bar">Passwörter in der Menüleiste</b><span class="erkl" data-de="Ein Schlüssel-Symbol, über das du deine Atlas-Passwörter suchst und kopierst — ähnlich wie in Safari." data-en="A key icon to search and copy your Atlas passwords — similar to Safari.">Ein Schlüssel-Symbol, über das du deine Atlas-Passwörter suchst und kopierst — ähnlich wie in Safari.</span></div>
+            <label class="schalter"><input type="checkbox" id="passwortSymbol" /><span></span></label></div>
+        </div>
+        <div class="karte">
+          <h2 data-de="Start und Kürzel" data-en="Startup and shortcut">Start und Kürzel</h2>
+          <div class="zeile"><div class="t"><b data-de="Beim Anmelden am Rechner starten" data-en="Open at login">Beim Anmelden am Rechner starten</b><span class="erkl" data-de="Atlas öffnet sich von selbst, sobald du dich am Rechner anmeldest. So verpasst du keine Mitteilung." data-en="Atlas opens by itself as soon as you log in to your computer, so you don’t miss any notification.">Atlas öffnet sich von selbst, sobald du dich am Rechner anmeldest. So verpasst du keine Mitteilung.</span></div>
+            <label class="schalter"><input type="checkbox" id="autostart" /><span></span></label></div>
+          <div class="zeile"><div class="t"><b id="kuerzelTitel" data-de="Tastenkürzel ⌥⌘A" data-en="Shortcut ⌥⌘A">Tastenkürzel ⌥⌘A</b><span class="erkl" data-de="Öffnet von überall die Schnellerfassung: kurz eine Aufgabe oder Notiz tippen, ohne Atlas erst suchen zu müssen." data-en="Opens Quick Capture from anywhere: jot down a task or note without having to find Atlas first.">Öffnet von überall die Schnellerfassung: kurz eine Aufgabe oder Notiz tippen, ohne Atlas erst suchen zu müssen.</span></div>
+            <label class="schalter"><input type="checkbox" id="kuerzel" /><span></span></label></div>
+        </div>
+      </section>
 
-    <section class="karte">
-      <h2 data-de="Darstellung" data-en="Appearance">Darstellung</h2>
-      <div class="zeile"><div class="t"><b data-de="App-Symbol" data-en="App icon">App-Symbol</b></div>
-        <div class="wahl" id="symbol"><button data-wert="schwarz" data-de="Schwarz" data-en="Black">Schwarz</button><button data-wert="weiss" data-de="Weiß" data-en="White">Weiß</button></div></div>
-      <div class="zeile"><div class="t"><b data-de="Symbol in der Menüleiste" data-en="Menu bar icon">Symbol in der Menüleiste</b><span class="leise" data-de="Belege, Bildschirmfoto, Schnellerfassung" data-en="Receipts, screenshot, quick capture">Belege, Bildschirmfoto, Schnellerfassung</span></div>
-        <label class="schalter"><input type="checkbox" id="menueleiste" /><span></span></label></div>
-      <div class="zeile"><div class="t"><b data-de="Passwörter in der Menüleiste" data-en="Passwords in the menu bar">Passwörter in der Menüleiste</b><span class="leise" data-de="Schlüssel-Symbol: suchen und kopieren wie in Safari" data-en="Key icon: search and copy like in Safari">Schlüssel-Symbol: suchen und kopieren wie in Safari</span></div>
-        <label class="schalter"><input type="checkbox" id="passwortSymbol" /><span></span></label></div>
-      <div class="zeile"><div class="t"><b data-de="Tastenkürzel ⌥⌘A" data-en="Shortcut ⌥⌘A">Tastenkürzel ⌥⌘A</b><span class="leise" data-de="Schnellerfassung von überall" data-en="Quick capture from anywhere">Schnellerfassung von überall</span></div>
-        <label class="schalter"><input type="checkbox" id="kuerzel" /><span></span></label></div>
-    </section>
+      <!-- ============ Eingang & Import ============ -->
+      <section class="seite" data-seite="eingang">
+        <h1 data-de="Eingang &amp; Import" data-en="Inbox &amp; Import">Eingang &amp; Import</h1>
+        <p class="leise intro" data-de="Belege, Rechnungen und Scans vom Rechner in den Atlas-Eingang bringen." data-en="Bring receipts, invoices and scans from your computer into the Atlas inbox.">Belege, Rechnungen und Scans vom Rechner in den Atlas-Eingang bringen.</p>
 
-    <section class="karte">
-      <h2 data-de="Belege in den Eingang" data-en="Receipts to inbox">Belege in den Eingang</h2>
-      <div class="zeile"><div class="t"><b data-de="Überwachter Ordner" data-en="Watched folder">Überwachter Ordner</b><span class="pfad" id="ordnerPfad"></span></div>
-        <div class="knoepfe"><button id="ordnerWaehlen" data-de="Wählen …" data-en="Choose …">Wählen …</button><button id="ordnerZeigen" data-de="Zeigen" data-en="Show">Zeigen</button><button id="ordnerWeg" data-de="Entfernen" data-en="Remove">Entfernen</button></div></div>
-      <div class="zeile"><div class="t"><b data-de="Warteschlange" data-en="Queue">Warteschlange</b><span class="leise" id="wartend"></span></div>
-        <button id="senden" data-de="Jetzt senden" data-en="Send now">Jetzt senden</button></div>
-      <div class="leise" data-de="Aufs Dock-Symbol ziehen oder in den Ordner legen — die Belege landen im Posteingang des Workspace, den du gerade offen hast. Ohne Netz warten sie hier und gehen später raus." data-en="Drag onto the Dock icon or drop into the folder — receipts go to the inbox of the workspace you have open. Offline they wait here and are sent later.">Aufs Dock-Symbol ziehen oder in den Ordner legen — die Belege landen im Posteingang des Workspace, den du gerade offen hast. Ohne Netz warten sie hier und gehen später raus.</div>
-    </section>
+        <div class="karte">
+          <h2 data-de="Wohin gehen neue Belege?" data-en="Where do new receipts go?">Wohin gehen neue Belege?</h2>
+          <p class="leise" data-de="Gilt für Dateien, die du aufs Dock-Symbol ziehst, über die Menüleiste oder die Schnellerfassung wählst, als Bildschirmfoto aufnimmst oder in den überwachten Ordner legst. Der Import-Ordner weiter unten hat seine eigenen festen Ziele." data-en="Applies to files you drag onto the Dock icon, choose via the menu bar or Quick Capture, capture as a screenshot or drop into the watched folder. The import folder below has its own fixed destinations.">Gilt für Dateien, die du aufs Dock-Symbol ziehst, über die Menüleiste oder die Schnellerfassung wählst, als Bildschirmfoto aufnimmst oder in den überwachten Ordner legst. Der Import-Ordner weiter unten hat seine eigenen festen Ziele.</p>
+          <div class="optionen" id="eingangZiel">
+            <button class="option" data-wert="fragen"><b data-de="Jedes Mal fragen" data-en="Ask every time">Jedes Mal fragen</b><span data-de="Atlas fragt bei jeder Datei, in welchen Workspace sie soll. Mit „Später“ landet sie erst einmal in deinem persönlichen Eingang." data-en="Atlas asks for each file which workspace it belongs to. Choose “Later” and it waits in your personal inbox.">Atlas fragt bei jeder Datei, in welchen Workspace sie soll. Mit „Später“ landet sie erst einmal in deinem persönlichen Eingang.</span></button>
+            <button class="option" data-wert="persoenlich"><b data-de="Persönlicher Eingang" data-en="Personal inbox">Persönlicher Eingang</b><span data-de="Alles landet zuerst in deinem persönlichen Eingang in Atlas. Nur du siehst es. Du ordnest später zu oder gibst es fürs Team frei." data-en="Everything first lands in your personal inbox in Atlas. Only you can see it. You assign it later or share it with the team.">Alles landet zuerst in deinem persönlichen Eingang in Atlas. Nur du siehst es. Du ordnest später zu oder gibst es fürs Team frei.</span></button>
+            <button class="option" data-wert="aktueller_workspace"><b data-de="Offener Workspace" data-en="Open workspace">Offener Workspace</b><span data-de="Landet im Eingang des Workspace, den du gerade in Atlas offen hast. Ist keiner offen, fragt Atlas nach." data-en="Goes to the inbox of the workspace you currently have open in Atlas. If none is open, Atlas asks.">Landet im Eingang des Workspace, den du gerade in Atlas offen hast. Ist keiner offen, fragt Atlas nach.</span></button>
+          </div>
+        </div>
 
-    <section class="karte">
-      <h2 data-de="Exporte" data-en="Exports">Exporte</h2>
-      <div class="zeile"><div class="t"><b data-de="Export-Ordner" data-en="Export folder">Export-Ordner</b><span class="pfad" id="exportPfad"></span></div>
-        <div class="knoepfe"><button id="exportWaehlen" data-de="Wählen …" data-en="Choose …">Wählen …</button><button id="exportWeg" data-de="Entfernen" data-en="Remove">Entfernen</button></div></div>
-      <div class="zeile"><div class="t"><b data-de="Unterordner je Mandant" data-en="Subfolder per client">Unterordner je Mandant</b><span class="leise" data-de="PDF, Excel, DATEV nach Workspace sortiert" data-en="PDF, Excel, DATEV sorted by workspace">PDF, Excel, DATEV nach Workspace sortiert</span></div>
-        <label class="schalter"><input type="checkbox" id="jeMandant" /><span></span></label></div>
-    </section>
+        <div class="karte">
+          <h2 data-de="Import-Ordner" data-en="Import folder">Import-Ordner</h2>
+          <div class="zeile"><div class="t"><b data-de="Import-Ordner verwenden" data-en="Use import folder">Import-Ordner verwenden</b><span class="erkl" data-de="Ein Ordner auf deinem Rechner mit je einem Unterordner pro Workspace. Was du hineinlegst, lädt Atlas von selbst an die richtige Stelle hoch — praktisch für Scanner und Sammelablagen." data-en="A folder on your computer with one subfolder per workspace. Whatever you put in is uploaded to the right place automatically — handy for scanners and shared drop folders.">Ein Ordner auf deinem Rechner mit je einem Unterordner pro Workspace. Was du hineinlegst, lädt Atlas von selbst an die richtige Stelle hoch — praktisch für Scanner und Sammelablagen.</span></div>
+            <label class="schalter"><input type="checkbox" id="importAn" /><span></span></label></div>
+          <div class="zeile" id="importVorschlagZeile"><div class="t"><b data-de="Vorschlag" data-en="Suggestion">Vorschlag</b><span class="pfad" id="importVorschlag"></span></div>
+            <div class="knoepfe"><button class="haupt" id="importAnlegen" data-de="Anlegen" data-en="Create">Anlegen</button><button id="importWaehlen" data-de="Anderen Ordner …" data-en="Other folder …">Anderen Ordner …</button></div></div>
+          <div class="zeile" id="importPfadZeile"><div class="t"><b data-de="Ordner" data-en="Folder">Ordner</b><span class="pfad" id="importPfad"></span></div>
+            <div class="knoepfe"><button id="importZeigen" data-de="Im Finder zeigen" data-en="Show in Finder">Im Finder zeigen</button><button id="importAendern" data-de="Ändern …" data-en="Change …">Ändern …</button></div></div>
+          <div class="zeile" id="importJeZeile"><div class="t"><b data-de="Unterordner je Unternehmen" data-en="Subfolder per company">Unterordner je Unternehmen</b><span class="erkl" data-de="Legt in jedem Workspace-Ordner zusätzlich einen Ordner pro Unternehmen an. Dateien darin werden gleich dem Unternehmen zugeordnet." data-en="Also creates one folder per company inside each workspace folder. Files there are assigned to that company straight away.">Legt in jedem Workspace-Ordner zusätzlich einen Ordner pro Unternehmen an. Dateien darin werden gleich dem Unternehmen zugeordnet.</span></div>
+            <label class="schalter"><input type="checkbox" id="importJe" /><span></span></label></div>
 
-    <section class="karte">
-      <h2 data-de="Sicherheit" data-en="Security">Sicherheit</h2>
-      <div class="zeile"><div class="t"><b data-de="Mit Touch ID schützen" data-en="Protect with Touch ID">Mit Touch ID schützen</b><span class="leise" id="touchHinweis" data-de="Beim Öffnen und nach Abwesenheit entsperren" data-en="Unlock on open and after being away">Beim Öffnen und nach Abwesenheit entsperren</span></div>
-        <label class="schalter"><input type="checkbox" id="touch" /><span></span></label></div>
-      <div class="zeile"><div class="t"><b data-de="Wieder sperren nach" data-en="Lock again after">Wieder sperren nach</b></div>
-        <select id="minuten"><option value="0" data-de="nur beim Öffnen" data-en="only on open">nur beim Öffnen</option><option value="5">5 min</option><option value="15">15 min</option><option value="60">60 min</option></select></div>
-    </section>
+          <h2 class="unterkopf" data-de="So sieht das aus" data-en="What it looks like">So sieht das aus</h2>
+          <div class="baum" aria-hidden="true">
+            <div class="z"><svg class="mappe m-lila" viewBox="0 0 24 24" fill="currentColor"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><div><span class="n">Atlas Import</span> <span class="w" data-de="→ dein persönlicher Eingang (nur du siehst es)" data-en="→ your personal inbox (only you see it)">→ dein persönlicher Eingang (nur du siehst es)</span></div></div>
+            <div class="z e1"><svg class="mappe m-gruen" viewBox="0 0 24 24" fill="currentColor"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><div><span class="n">Nordlicht Medien</span> <span class="w" data-de="→ Eingang dieses Workspace, fürs Team sichtbar" data-en="→ this workspace’s inbox, visible to the team">→ Eingang dieses Workspace, fürs Team sichtbar</span></div></div>
+            <div class="z e2"><svg class="mappe m-gold" viewBox="0 0 24 24" fill="currentColor"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><div><span class="n">Nordlicht GmbH</span> <span class="w" data-de="→ gleich beim Unternehmen (nur mit „je Unternehmen“)" data-en="→ straight to the company (only with “per company”)">→ gleich beim Unternehmen (nur mit „je Unternehmen“)</span></div></div>
+            <div class="z e2"><svg class="mappe m-grau" viewBox="0 0 24 24" fill="currentColor"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><div><span class="n" data-de="Hochgeladen" data-en="Uploaded">Hochgeladen</span> <span class="w" data-de="→ hierhin räumt Atlas fertig hochgeladene Dateien" data-en="→ Atlas moves files here once they are uploaded">→ hierhin räumt Atlas fertig hochgeladene Dateien</span></div></div>
+            <div class="z e1"><svg class="mappe m-gruen" viewBox="0 0 24 24" fill="currentColor"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><div><span class="n">Brennpunkt Fotografie</span> <span class="w" data-de="→ Eingang dieses Workspace" data-en="→ this workspace’s inbox">→ Eingang dieses Workspace</span></div></div>
+          </div>
+          <p class="leise" data-de="Die Ordner legt Atlas selbst an — für jeden Workspace, in dem du Belege einreichen darfst. Wird ein Workspace umbenannt, zieht der Ordner mit. Gelöscht wird nie etwas: Fällt ein Workspace weg, bleibt sein Ordner stehen, und was du dort hineinlegst, geht zur Sicherheit in deinen persönlichen Eingang." data-en="Atlas creates the folders itself — one for every workspace where you may submit receipts. If a workspace is renamed, its folder follows. Nothing is ever deleted: if a workspace goes away, its folder stays, and anything you put there goes to your personal inbox to be safe.">Die Ordner legt Atlas selbst an — für jeden Workspace, in dem du Belege einreichen darfst. Wird ein Workspace umbenannt, zieht der Ordner mit. Gelöscht wird nie etwas: Fällt ein Workspace weg, bleibt sein Ordner stehen, und was du dort hineinlegst, geht zur Sicherheit in deinen persönlichen Eingang.</p>
 
-    <section class="karte">
-      <h2 data-de="Start" data-en="Startup">Start</h2>
-      <div class="zeile"><div class="t"><b data-de="Beim Anmelden starten" data-en="Open at login">Beim Anmelden starten</b></div>
-        <label class="schalter"><input type="checkbox" id="autostart" /><span></span></label></div>
-    </section>
-    <div class="meldung" id="meldung"></div>
-  </main>
+          <h2 class="unterkopf" data-de="Deine Workspace-Ordner" data-en="Your workspace folders">Deine Workspace-Ordner</h2>
+          <div class="ws-liste" id="importListe"></div>
+        </div>
+
+        <div class="karte">
+          <h2 data-de="Überwachter Ordner" data-en="Watched folder">Überwachter Ordner</h2>
+          <div class="zeile"><div class="t"><b data-de="Ordner" data-en="Folder">Ordner</b><span class="erkl" data-de="Ein einzelner Ordner, zum Beispiel der Ablageordner deines Scanners. Neue Belege darin gehen an das Ziel, das oben unter „Wohin gehen neue Belege?“ gewählt ist." data-en="A single folder, for example your scanner’s output folder. New receipts there go to the destination chosen above under “Where do new receipts go?”.">Ein einzelner Ordner, zum Beispiel der Ablageordner deines Scanners. Neue Belege darin gehen an das Ziel, das oben unter „Wohin gehen neue Belege?“ gewählt ist.</span><span class="pfad" id="ordnerPfad"></span></div>
+            <div class="knoepfe"><button id="ordnerWaehlen" data-de="Wählen …" data-en="Choose …">Wählen …</button><button id="ordnerZeigen" data-de="Zeigen" data-en="Show">Zeigen</button><button id="ordnerWeg" data-de="Entfernen" data-en="Remove">Entfernen</button></div></div>
+        </div>
+
+        <div class="karte">
+          <h2 data-de="Warteschlange" data-en="Queue">Warteschlange</h2>
+          <div class="zeile"><div class="t"><b data-de="Noch nicht gesendet" data-en="Not sent yet">Noch nicht gesendet</b><span class="erkl" data-de="Ohne Internet oder ohne Anmeldung warten Belege hier und gehen von selbst raus, sobald Atlas wieder verbunden ist." data-en="Without internet or while signed out, receipts wait here and are sent automatically once Atlas is connected again.">Ohne Internet oder ohne Anmeldung warten Belege hier und gehen von selbst raus, sobald Atlas wieder verbunden ist.</span><span class="leise" id="wartend"></span></div>
+            <button id="senden" data-de="Jetzt senden" data-en="Send now">Jetzt senden</button></div>
+        </div>
+      </section>
+
+      <!-- ============ Downloads & Export ============ -->
+      <section class="seite" data-seite="export">
+        <h1 data-de="Downloads &amp; Export" data-en="Downloads &amp; Export">Downloads &amp; Export</h1>
+        <p class="leise intro" data-de="Wo Dateien landen, die du aus Atlas herunterlädst." data-en="Where files you download from Atlas end up.">Wo Dateien landen, die du aus Atlas herunterlädst.</p>
+        <div class="karte">
+          <h2 data-de="Exporte" data-en="Exports">Exporte</h2>
+          <div class="zeile"><div class="t"><b data-de="Export-Ordner" data-en="Export folder">Export-Ordner</b><span class="erkl" data-de="PDFs, Excel-Listen und DATEV-Dateien aus Atlas landen hier statt im Ordner „Downloads“. Ohne Auswahl bleibt es bei „Downloads“." data-en="PDFs, Excel lists and DATEV files from Atlas are saved here instead of “Downloads”. If nothing is chosen, “Downloads” is used.">PDFs, Excel-Listen und DATEV-Dateien aus Atlas landen hier statt im Ordner „Downloads“. Ohne Auswahl bleibt es bei „Downloads“.</span><span class="pfad" id="exportPfad"></span></div>
+            <div class="knoepfe"><button id="exportWaehlen" data-de="Wählen …" data-en="Choose …">Wählen …</button><button id="exportZeigen" data-de="Zeigen" data-en="Show">Zeigen</button><button id="exportWeg" data-de="Entfernen" data-en="Remove">Entfernen</button></div></div>
+          <div class="zeile"><div class="t"><b data-de="Unterordner je Mandant" data-en="Subfolder per client">Unterordner je Mandant</b><span class="erkl" data-de="Legt im Export-Ordner für jeden Workspace einen eigenen Ordner an, damit die Dateien verschiedener Kunden nicht durcheinandergeraten." data-en="Creates a separate folder per workspace inside the export folder so files of different clients don’t get mixed up.">Legt im Export-Ordner für jeden Workspace einen eigenen Ordner an, damit die Dateien verschiedener Kunden nicht durcheinandergeraten.</span></div>
+            <label class="schalter"><input type="checkbox" id="jeMandant" /><span></span></label></div>
+        </div>
+      </section>
+
+      <!-- ============ Mitteilungen ============ -->
+      <section class="seite" data-seite="mitteilungen">
+        <h1 data-de="Mitteilungen" data-en="Notifications">Mitteilungen</h1>
+        <p class="leise intro" data-de="Hinweise von Atlas oben rechts am Bildschirm — auch wenn das Fenster im Hintergrund ist." data-en="Atlas alerts in the top right of your screen — even when the window is in the background.">Hinweise von Atlas oben rechts am Bildschirm — auch wenn das Fenster im Hintergrund ist.</p>
+        <div class="karte">
+          <h2 data-de="Mitteilungen von Atlas" data-en="Notifications from Atlas">Mitteilungen von Atlas</h2>
+          <div class="zeile"><div class="t"><b data-de="Erlauben" data-en="Allow">Erlauben</b><span class="erkl" data-de="Chat, Erwähnungen, Aufgaben und fertige Downloads melden sich mit einer Mitteilung. Beim ersten Mal fragt der Rechner, ob du das erlaubst." data-en="Chat, mentions, tasks and finished downloads show a notification. The first time, your computer asks whether you allow this.">Chat, Erwähnungen, Aufgaben und fertige Downloads melden sich mit einer Mitteilung. Beim ersten Mal fragt der Rechner, ob du das erlaubst.</span></div>
+            <button id="erlauben" data-de="Erlauben" data-en="Allow">Erlauben</button></div>
+          <div class="zeile"><div class="t"><b data-de="Probe-Mitteilung" data-en="Test notification">Probe-Mitteilung</b><span class="erkl" data-de="Schickt eine Beispiel-Mitteilung, damit du siehst, wie sie aussieht." data-en="Sends a sample notification so you can see what it looks like.">Schickt eine Beispiel-Mitteilung, damit du siehst, wie sie aussieht.</span></div>
+            <button id="testen" class="haupt" data-de="Testen" data-en="Test">Testen</button></div>
+          <div class="hinweis warn" id="mitteilungHinweis" data-de="Es erscheint nichts? Öffne die Systemeinstellungen → Mitteilungen → Sinclair Atlas und schalte „Mitteilungen erlauben“ ein. Prüfe auch, ob „Nicht stören“ bzw. ein Fokus aktiv ist." data-en="Nothing shows up? Open System Settings → Notifications → Sinclair Atlas and turn on “Allow notifications”. Also check whether Do Not Disturb or a Focus is on.">Es erscheint nichts? Öffne die Systemeinstellungen → Mitteilungen → Sinclair Atlas und schalte „Mitteilungen erlauben“ ein. Prüfe auch, ob „Nicht stören“ bzw. ein Fokus aktiv ist.</div>
+        </div>
+      </section>
+
+      <!-- ============ Sicherheit ============ -->
+      <section class="seite" data-seite="sicherheit">
+        <h1 data-de="Sicherheit" data-en="Security">Sicherheit</h1>
+        <p class="leise intro" data-de="Schützt Atlas, wenn andere an deinen Rechner kommen." data-en="Protects Atlas when others can get to your computer.">Schützt Atlas, wenn andere an deinen Rechner kommen.</p>
+        <div class="karte">
+          <h2 data-de="Sperre" data-en="Lock">Sperre</h2>
+          <div class="zeile"><div class="t"><b data-de="Mit Touch ID schützen" data-en="Protect with Touch ID">Mit Touch ID schützen</b><span class="erkl" id="touchHinweis" data-de="Beim Öffnen und nach einer Pause bestätigst du dich mit dem Finger auf dem Touch-ID-Sensor, bevor Atlas etwas zeigt." data-en="When opening and after a break you confirm with your finger on the Touch ID sensor before Atlas shows anything.">Beim Öffnen und nach einer Pause bestätigst du dich mit dem Finger auf dem Touch-ID-Sensor, bevor Atlas etwas zeigt.</span></div>
+            <label class="schalter"><input type="checkbox" id="touch" /><span></span></label></div>
+          <div class="zeile"><div class="t"><b data-de="Wieder sperren nach" data-en="Lock again after">Wieder sperren nach</b><span class="erkl" data-de="Wie lange Atlas im Hintergrund sein darf, bevor wieder Touch ID nötig ist." data-en="How long Atlas may be in the background before Touch ID is needed again.">Wie lange Atlas im Hintergrund sein darf, bevor wieder Touch ID nötig ist.</span></div>
+            <select id="minuten"><option value="0" data-de="nur beim Öffnen" data-en="only on open">nur beim Öffnen</option><option value="5">5 min</option><option value="15">15 min</option><option value="60">60 min</option></select></div>
+        </div>
+      </section>
+
+      <!-- ============ Über ============ -->
+      <section class="seite" data-seite="ueber">
+        <h1 data-de="Über Sinclair Atlas" data-en="About Sinclair Atlas">Über Sinclair Atlas</h1>
+        <p class="leise intro" data-de="Die Desktop-App für Atlas von Sinclairs Solutions." data-en="The desktop app for Atlas by Sinclairs Solutions.">Die Desktop-App für Atlas von Sinclairs Solutions.</p>
+        <div class="karte">
+          <dl class="daten">
+            <dt data-de="Version" data-en="Version">Version</dt><dd id="ueberVersion"></dd>
+            <dt data-de="System" data-en="System">System</dt><dd id="ueberPlattform"></dd>
+          </dl>
+        </div>
+        <div class="karte">
+          <h2 data-de="Updates" data-en="Updates">Updates</h2>
+          <div class="zeile"><div class="t"><b data-de="Automatisch aktuell" data-en="Kept up to date">Automatisch aktuell</b><span class="erkl" data-de="Atlas sucht von selbst nach neuen Versionen und fragt dich, bevor es neu startet — so geht nichts verloren, was du gerade tippst." data-en="Atlas looks for new versions by itself and asks you before restarting — so nothing you are typing gets lost.">Atlas sucht von selbst nach neuen Versionen und fragt dich, bevor es neu startet — so geht nichts verloren, was du gerade tippst.</span></div>
+            <button id="updates" data-de="Jetzt suchen" data-en="Check now">Jetzt suchen</button></div>
+        </div>
+      </section>
+    </main>
+  </div>
   <script src="sprache.js"></script>
   <script src="einstellungen.js"></script>
 </body>

@@ -34,7 +34,7 @@ h1 { font-size: 18px; margin: 0 0 4px; font-weight: 650; }
 }
 .karte h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--leise); margin: 0 0 8px; font-weight: 600; }
 .zeile { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
-.zeile + .zeile { border-top: 1px solid rgba(127,127,127,.12); }
+.zeile + .zeile { background: linear-gradient(90deg, transparent, rgba(127,127,127,.14) 12%, rgba(127,127,127,.14) 88%, transparent) top / 100% 1px no-repeat; }
 .zeile .t { min-width: 0; }
 .zeile .t b { font-weight: 550; display: block; }
 button, select {

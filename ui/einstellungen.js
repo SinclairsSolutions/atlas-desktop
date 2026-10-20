@@ -4,10 +4,96 @@
   var $ = function (id) { return document.getElementById(id); };
   var stand = null;
   function melden(t, fehler) { var m = $("meldung"); m.textContent = t || ""; m.className = "meldung" + (fehler ? " fehler" : ""); }
+  function sichtbar(el, an) { el.style.display = an ? "" : "none"; }
+
+  // ---- Reiter (zuletzt offener wird gemerkt) ----
+  var MERKER = "atlas.einstellungen.reiter";
+  function reiterZeigen(name) {
+    var gibt = document.querySelector('.seite[data-seite="' + name + '"]');
+    if (!gibt) name = "allgemein";
+    document.querySelectorAll("#reiter button[data-reiter]").forEach(function (b) {
+      b.classList.toggle("an", b.getAttribute("data-reiter") === name);
+    });
+    document.querySelectorAll(".seite").forEach(function (s) {
+      s.classList.toggle("an", s.getAttribute("data-seite") === name);
+    });
+    try { localStorage.setItem(MERKER, name); } catch (_) {}
+  }
+  document.querySelectorAll("#reiter button[data-reiter]").forEach(function (b) {
+    b.onclick = function () { reiterZeigen(b.getAttribute("data-reiter")); };
+  });
+  var gemerkt = null;
+  try { gemerkt = localStorage.getItem(MERKER); } catch (_) {}
+  reiterZeigen(gemerkt || "allgemein");
+
+  function plattformName(p) {
+    return p === "macos" ? "macOS" : p === "windows" ? "Windows" : p === "linux" ? "Linux" : p;
+  }
+
+  function importListe() {
+    var box = $("importListe");
+    box.textContent = "";
+    var imp = stand.import || { bekannt: false, workspaces: [], inaktiv: [] };
+    var an = !!stand.einstellungen.importOrdner;
+    function hinweis(text) {
+      var d = document.createElement("div");
+      d.className = "hinweis";
+      d.textContent = text;
+      box.appendChild(d);
+    }
+    if (!imp.bekannt) {
+      hinweis(tt(
+        "Noch keine Workspaces bekannt. Melde dich in Atlas an — dann legt die App die Ordner an.",
+        "No workspaces known yet. Sign in to Atlas — the app then creates the folders."
+      ));
+      return;
+    }
+    if (!imp.workspaces.length) {
+      hinweis(tt(
+        "Atlas hat keine Workspaces gemeldet, in denen du Belege einreichen darfst. Alles im Import-Ordner geht in deinen persönlichen Eingang.",
+        "Atlas reported no workspaces where you may submit receipts. Everything in the import folder goes to your personal inbox."
+      ));
+    }
+    imp.workspaces.forEach(function (w) {
+      var d = document.createElement("div");
+      d.className = "ws";
+      var n = document.createElement("b");
+      n.textContent = w.name;
+      d.appendChild(n);
+      var o = document.createElement("div");
+      o.className = "ordner";
+      o.textContent = an
+        ? (w.ordner ? tt("Ordner: ", "Folder: ") + w.ordner : tt("Ordner wird angelegt …", "Folder is being created …"))
+        : tt("Ordner entsteht, sobald der Import-Ordner an ist", "Folder is created once the import folder is on");
+      d.appendChild(o);
+      if (stand.einstellungen.importJeUnternehmen) {
+        (w.unternehmen || []).forEach(function (u) {
+          var z = document.createElement("div");
+          z.className = "ws-u";
+          z.textContent = "↳ " + u.name + (an && u.ordner ? "  ·  " + u.ordner : "");
+          d.appendChild(z);
+        });
+      }
+      box.appendChild(d);
+    });
+    if (an && imp.inaktiv && imp.inaktiv.length) {
+      var d = document.createElement("div");
+      d.className = "hinweis warn";
+      d.textContent = tt(
+        "Nicht mehr aktiv (Dateien darin gehen in deinen persönlichen Eingang): ",
+        "No longer active (files there go to your personal inbox): "
+      ) + imp.inaktiv.join(", ");
+      box.appendChild(d);
+    }
+  }
 
   function zeigen() {
     var e = stand.einstellungen;
     $("version").textContent = "Sinclair Atlas " + stand.version;
+    $("ueberVersion").textContent = stand.version;
+    $("ueberPlattform").textContent = plattformName(stand.plattform);
+    if (stand.plattform === "windows") $("importZeigen").textContent = tt("Im Explorer zeigen", "Show in Explorer");
+    if (stand.plattform !== "macos") $("kuerzelTitel").textContent = tt("Tastenkürzel Strg+Alt+A", "Shortcut Ctrl+Alt+A");
     $("dockZahl").checked = e.dockZahl;
     $("menueleiste").checked = e.menueleiste;
     $("passwortSymbol").checked = e.passwortSymbol;
@@ -15,7 +101,7 @@
     $("jeMandant").checked = e.exportJeMandant;
     $("touch").checked = e.touchIdSperre;
     $("touch").disabled = !stand.touchId;
-    if (!stand.touchId) $("touchHinweis").textContent = tt("Auf diesem Gerät nicht verfügbar", "Not available on this device");
+    if (!stand.touchId) $("touchHinweis").textContent = tt("Auf diesem Gerät nicht verfügbar.", "Not available on this device.");
     $("minuten").value = String(e.sperreNachMinuten);
     $("minuten").disabled = !e.touchIdSperre;
     $("autostart").checked = stand.autostart;
@@ -24,6 +110,7 @@
     $("ordnerWeg").disabled = !e.ueberwachterOrdner;
     $("exportPfad").textContent = e.exportOrdner || tt("Download-Ordner", "Downloads folder");
     $("exportWeg").disabled = !e.exportOrdner;
+    $("exportZeigen").disabled = !e.exportOrdner;
     $("wartend").textContent = stand.wartend
       ? tt(stand.wartend + " Datei(en) warten", stand.wartend + " file(s) waiting")
       : tt("Alles gesendet", "Everything sent");
@@ -31,6 +118,19 @@
     document.querySelectorAll("#symbol button").forEach(function (b) {
       b.classList.toggle("an", b.getAttribute("data-wert") === e.symbol);
     });
+    var ziel = e.eingangZiel || "fragen";
+    document.querySelectorAll("#eingangZiel .option").forEach(function (b) {
+      b.classList.toggle("an", b.getAttribute("data-wert") === ziel);
+    });
+    // Import-Ordner
+    var an = !!e.importOrdner;
+    $("importAn").checked = an;
+    sichtbar($("importVorschlagZeile"), !an);
+    sichtbar($("importPfadZeile"), an);
+    $("importVorschlag").textContent = stand.importVorschlag || "~/Atlas Import";
+    $("importPfad").textContent = e.importOrdner || "";
+    $("importJe").checked = e.importJeUnternehmen;
+    importListe();
   }
   function laden() { return inv("einstellungen_lesen").then(function (r) { stand = r; zeigen(); }); }
   function setzen(patch) {
@@ -38,6 +138,14 @@
     return inv("einstellungen_setzen", { neu: neu })
       .then(function () { melden(tt("Gespeichert", "Saved")); return laden(); })
       .catch(function (e) { melden(String(e), true); return laden(); });
+  }
+  function importAnlegen() {
+    return inv("import_ordner_anlegen")
+      .then(function () { melden(tt("Import-Ordner angelegt", "Import folder created")); return laden(); })
+      .catch(function (e) { melden(String(e), true); return laden(); });
+  }
+  function importWaehlen() {
+    return inv("ordner_waehlen").then(function (p) { if (p) return setzen({ importOrdner: p }); laden(); });
   }
 
   $("dockZahl").onchange = function () { setzen({ dockZahl: this.checked }); };
@@ -53,18 +161,47 @@
   document.querySelectorAll("#symbol button").forEach(function (b) {
     b.onclick = function () { setzen({ symbol: b.getAttribute("data-wert") }); };
   });
+  document.querySelectorAll("#eingangZiel .option").forEach(function (b) {
+    b.onclick = function () { setzen({ eingangZiel: b.getAttribute("data-wert") }); };
+  });
+  $("importAn").onchange = function () {
+    if (this.checked) importAnlegen();
+    else setzen({ importOrdner: null });
+  };
+  $("importAnlegen").onclick = importAnlegen;
+  $("importWaehlen").onclick = importWaehlen;
+  $("importAendern").onclick = importWaehlen;
+  $("importZeigen").onclick = function () { inv("ordner_zeigen", { pfad: stand.einstellungen.importOrdner }); };
+  $("importJe").onchange = function () { setzen({ importJeUnternehmen: this.checked }); };
   $("ordnerWaehlen").onclick = function () { inv("ordner_waehlen").then(function (p) { if (p) setzen({ ueberwachterOrdner: p }); }); };
   $("ordnerWeg").onclick = function () { setzen({ ueberwachterOrdner: null }); };
   $("ordnerZeigen").onclick = function () { inv("ordner_zeigen", { pfad: stand.einstellungen.ueberwachterOrdner }); };
   $("exportWaehlen").onclick = function () { inv("ordner_waehlen").then(function (p) { if (p) setzen({ exportOrdner: p }); }); };
   $("exportWeg").onclick = function () { setzen({ exportOrdner: null }); };
+  $("exportZeigen").onclick = function () { inv("ordner_zeigen", { pfad: stand.einstellungen.exportOrdner }); };
   $("senden").onclick = function () { inv("warteschlange_senden").then(function () { setTimeout(laden, 1500); }); };
   $("erlauben").onclick = function () {
     inv("mitteilungen_erlauben").then(function (r) {
       melden(r === "granted" ? tt("Mitteilungen erlaubt", "Notifications allowed") : tt("Bitte in den Systemeinstellungen → Mitteilungen erlauben", "Please allow in System Settings → Notifications"), r !== "granted");
     });
   };
-  $("testen").onclick = function () { inv("mitteilung_testen").catch(function (e) { melden(String(e), true); }); };
+  $("testen").onclick = function () {
+    inv("mitteilung_testen")
+      .then(function () { melden(tt("Probe-Mitteilung gesendet", "Test notification sent")); })
+      .catch(function (e) { melden(String(e), true); });
+  };
+  $("updates").onclick = function () {
+    inv("nach_updates_suchen").then(function () { melden(tt("Suche nach Updates …", "Checking for updates …")); });
+  };
+  if (!/Mac/i.test(navigator.platform || "")) {
+    $("mitteilungHinweis").textContent = tt(
+      "Es erscheint nichts? Öffne Einstellungen → System → Benachrichtigungen und erlaube Sinclair Atlas. Prüfe auch, ob „Nicht stören“ aktiv ist.",
+      "Nothing shows up? Open Settings → System → Notifications and allow Sinclair Atlas. Also check whether Do Not Disturb is on."
+    );
+  }
   laden();
-  setInterval(function () { if (stand) inv("einstellungen_lesen").then(function (r) { stand.wartend = r.wartend; zeigen(); }); }, 5000);
+  // Warteschlange und Workspace-Liste aktuell halten (Atlas meldet sie nach der Anmeldung).
+  setInterval(function () {
+    if (stand) inv("einstellungen_lesen").then(function (r) { stand.wartend = r.wartend; stand.import = r.import; zeigen(); });
+  }, 5000);
 })();

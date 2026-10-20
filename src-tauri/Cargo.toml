@@ -1,6 +1,6 @@
 [package]
 name = "atlas-desktop"
-version = "0.2.4"
+version = "0.2.5"
 description = "Sinclair Atlas als Desktop-App"
 authors = ["Sinclairs Solutions"]
 edition = "2021"
