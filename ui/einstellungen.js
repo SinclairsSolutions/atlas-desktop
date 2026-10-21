@@ -166,6 +166,12 @@
   function ablageZeigenStand() {
     return inv("ablage_info").then(function (i) {
       ablageInfo = i;
+      if (i.plattform === "windows") {
+        var titel = tt("Ablage im Explorer", "Files in Explorer");
+        ["reiterAblageText", "ablageTitel", "ablageSchalterTitel"].forEach(function (id) { $(id).textContent = titel; });
+        $("ablageZeigen").textContent = tt("Im Explorer zeigen", "Show in Explorer");
+        sichtbar($("ablageWindows"), true);
+      }
       $("ablageAn").checked = !!i.gewuenscht;
       $("ablageAn").disabled = !i.eingebaut;
       var text;

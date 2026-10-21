@@ -16,6 +16,8 @@
 //! Der Gerätezugang gilt nur für `/api/public/desktop/ablage/*` und ist im
 //! Profil (Apps) jederzeit widerrufbar.
 
+mod api;
+
 #[cfg(target_os = "macos")]
 mod mac;
 #[cfg(target_os = "macos")]

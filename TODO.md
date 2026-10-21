@@ -374,3 +374,24 @@ Abmelden in Atlas.
       „… (Konflikt von <Name>, <Datum>)“. Umbenennen/Verschieben im Finder → in Atlas;
       Löschen → Atlas-Papierkorb (ohne Verwalten-Recht: Finder stellt wieder her);
       Verschieben in einen anderen Workspace → wird zurückgesetzt.
+
+### Windows (Phase 3, Branch `finder-ablage`)
+
+`src-tauri/src/ablage/windows.rs`: Cloud Files API (cfapi) direkt in der App —
+Sync-Root `%USERPROFILE%\Atlas`, Platzhalter mit Atlas-Kennung, Laden beim
+Öffnen (FETCH_DATA), Umbenennen/Verschieben/Löschen über Callbacks an Atlas,
+Abgleich alle 30 s, Gerätezugang in der Anmeldeinformationsverwaltung,
+BitLocker-Hinweis. Gleiche Server-Schnittstelle und gleicher Gerätezugang
+wie auf dem Mac (`src-tauri/src/ablage/api.rs`).
+
+- Nur gebaut (Windows-Job in `bauen.yml`), **nie ausgeführt** — es gibt hier
+  keinen Windows-Rechner. Vor dem Ausliefern auf einem echten Windows 10/11
+  testen (Liste oben sinngemäß, dazu: App beenden → nicht geladene Dateien
+  lassen sich nicht öffnen, geladene schon).
+- Bekannte Grenzen: Laden nur bei laufender App (kein eigener Dienst);
+  Änderungen aus Atlas erscheinen spätestens nach 30 s; Ordner „Atlas“ steht
+  noch nicht in der Explorer-Navigationsleiste (dafür bräuchte es die
+  WinRT-Registrierung `StorageProviderSyncRootManager`, die für nicht
+  paketierte Apps Identität/Signatur verlangt) — Zugang über
+  „Im Explorer zeigen“ bzw. den Benutzerordner.
+- Der Windows-Installer wird weiterhin nicht ausgeliefert (siehe Abschnitt 4).
