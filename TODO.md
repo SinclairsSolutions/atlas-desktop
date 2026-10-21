@@ -115,9 +115,11 @@ Passkeys (auch zum Anmelden) in der App selbst funktionieren sollen.
       Team-ID ein und bette das Profil im Workflow ein.
 - [ ] Atlas muss die Datei `/.well-known/apple-app-site-association` ausliefern (siehe 3.4).
 
-### 1.7 Windows-Signatur (erst wenn Windows ausgeliefert wird, kostet Geld)
+### 1.7 Windows (Einschalten kostenlos, Signatur kostet ca. 10 USD/Monat)
 
-Siehe Abschnitt 4.
+Ausliefern: Repo-Variable `WINDOWS_AUSLIEFERN = true` (4.3). Signatur: Azure Trusted
+Signing einrichten, Secrets `AZURE_CLIENT_ID`/`AZURE_CLIENT_SECRET`/`AZURE_TENANT_ID`,
+Variable `WINDOWS_SIGNIEREN = true` (4.2). Vorher auf einem Windows-PC testen (4.4).
 
 ---
 
@@ -251,36 +253,160 @@ erkennt.
 
 ---
 
-## 4. Offen für Windows
+## 4. Windows ausliefern
 
-Der Windows-Installer (NSIS, Benutzerinstallation, DE/EN) wird bei jedem Lauf gebaut
-und als Artefakt `Sinclair-Atlas-Windows-ungeliefert` abgelegt, aber **nicht**
-veröffentlicht und **nicht** signiert.
+Stand 21.10.2026 (Branch `windows-ausliefern`). Der Installer (NSIS, x64,
+Benutzerinstallation ohne Administratorrechte, DE/EN) wird bei jedem Lauf gebaut.
+Ins Release kommt er erst, wenn du es einschaltest — bis dahin ändert sich für
+Mac-Nutzer nichts.
 
-- [x] Windows-Code übersetzt und Installer gebaut (erster GitHub-Lauf am 19.10.2026,
-      Artefakt vorhanden). **Gestartet hat ihn noch niemand.**
-- [ ] **Signatur:** vorbereitet für Azure Trusted Signing (ca. 10 $/Monat, Identitätsprüfung
-      der Firma). Einschalten:
-      1. Trusted-Signing-Konto und Zertifikatprofil in Azure anlegen.
-      2. In `src-tauri/tauri.windows-signatur.conf.json` die drei `ERSETZEN_…` füllen
-         (Endpunkt, Konto, Profil).
-      3. Secrets `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID` anlegen.
-      4. Repo-Variable `WINDOWS_SIGNIEREN = true` setzen.
+### 4.1 Was schon erledigt ist
 
-      Ohne Signatur warnt SmartScreen beim Start.
-- [ ] **Updates für Windows:** Derzeit erzeugt der Windows-Lauf bewusst kein Update-Paket
-      (`tauri.windows.ungeliefert.conf.json`). Zum Ausliefern die Datei entfernen und den
-      Windows-Job auf `tauri-action` mit derselben Release-ID wie macOS umstellen, damit
-      `latest.json` den Eintrag `windows-x86_64` bekommt.
-- [ ] Testen: WebView2 (installiert der Installer bei Bedarf), Menüleiste,
-      Strg+R/F5/F11/Alt+←, Mitteilungen (erst nach Installation, vorher erscheinen sie
-      unter falschem Namen), Overlay-Zahl an der Taskleiste, Deep-Link nach Installation,
-      zweiter Start mit Deep-Link, Downloads (WebView2 zeigt eigene Download-Leiste).
-- [ ] **Schließen beendet die App** (unter macOS nur ausblenden). Falls Mitteilungen auch
-      bei geschlossenem Fenster kommen sollen: Infobereich-Symbol (Tray) ergänzen.
-- [ ] **Symbol:** Das Mac-Symbol hat Rand und Schatten nach Apple-Vorgabe und wirkt in der
-      Taskleiste klein. Eigenes, randloses Windows-Symbol erzeugen.
-- [ ] Optional: ARM64-Build (`aarch64-pc-windows-msvc`).
+- [x] Windows-Code wird in CI mit `-D warnings` übersetzt (inkl. Ablage im Explorer,
+      `src-tauri/src/ablage/windows.rs`) — Warnungen brechen den Lauf ab.
+- [x] **Updates für Windows:** Mit der Repo-Variable `WINDOWS_AUSLIEFERN = true`
+      baut der Windows-Job bei einem Tag zusätzlich die Updater-Signatur
+      (`…-setup.exe.sig`, mit demselben `TAURI_SIGNING_PRIVATE_KEY` wie macOS). Der
+      Job **„windows-release“** läuft erst nach macOS **und** Windows, lädt
+      `Sinclair.Atlas_<version>_x64-setup.exe`, `.sig` und `windows.json` in den
+      **Entwurf**, den macOS angelegt hat, und ergänzt dort `latest.json` um
+      `windows-x86_64` (+ `windows-x86_64-nsis`) — `scripts/windows-in-latest-json.sh`,
+      prüft Version und lässt die macOS-Einträge unverändert. Ein schon
+      veröffentlichter Release wird nie angefasst.
+      Ohne die Variable: wie bisher nur Artefakt `Sinclair-Atlas-Windows-ungeliefert`
+      (`tauri.windows.ungeliefert.conf.json` gilt nur noch dann).
+- [x] Probe ohne Release: `gh workflow run bauen.yml --ref <branch> -f windows_probe=true`
+      baut das Updater-Paket und führt die latest.json-Zusammenführung als
+      Trockenlauf gegen den neuesten veröffentlichten Release aus.
+- [x] **Symbol:** eigenes, randloses Windows-Symbol (`icon.ico` mit 16/24/32/48/64/256 px,
+      kleine Größen mit kräftigeren Linien), erzeugt aus `quelle-1024.png` mit
+      `scripts/windows-symbole-erzeugen.py` (läuft auch in `bun run symbole` mit).
+      Ursache des kleinen, gerahmten Taskleisten-Symbols war, dass die App beim Start
+      das Mac-Dock-Bild (mit Apple-Rand und Schatten) als Fenstersymbol gesetzt hat —
+      jetzt nimmt sie unter Windows das Symbol aus der Programmdatei bzw. eine
+      randlose weiße Variante.
+- [x] **Infobereich (Tray):** eigene Symbole statt der Mac-Template-Bilder (die auf der
+      dunklen Taskleiste unsichtbar waren). **Schließen** blendet das Hauptfenster in
+      den Infobereich aus, solange das Symbol an ist (Einstellung „Menüleiste“,
+      Standard an) — Mitteilungen und Taskleisten-Zahl laufen weiter. „Sinclair Atlas
+      beenden“ im Infobereich-Menü bzw. Datei → Beenden beendet. Ist das Symbol aus,
+      beendet Schließen die App wie bisher.
+- [x] Atlas-Seite vorbereitet (Atlas-Branch `windows-download`, nicht deployt):
+      `/api/public/desktop-download?os=windows` reicht den Installer durch, Profil →
+      Apps zeigt „Für Windows herunterladen“ nur, wenn der veröffentlichte Release einen
+      Installer hat, und den SmartScreen-Hinweis, solange `windows.json` `signiert: false` meldet.
+
+### 4.2 Signatur (kostet Geld — optional, aber empfohlen)
+
+Ohne Signatur funktioniert alles, aber beim **ersten Start des Installers** zeigt
+Windows SmartScreen: „Der Computer wurde durch Windows geschützt“ (engl. „Windows
+protected your PC“), Herausgeber „Unbekannt“. Weiter geht es über **„Weitere
+Informationen“ → „Trotzdem ausführen“**. Manche Firmen-PCs (Intune/Gruppenrichtlinie)
+lassen das gar nicht zu; gelegentlich meldet ein Virenscanner unsignierte Installer.
+
+**Updates gehen auch unsigniert:** Der Tauri-Updater prüft nur seine eigene Signatur
+(`.sig`, minisign, Schlüssel aus 1.3) — Authenticode spielt dafür keine Rolle. Die App lädt
+das Update selbst (ohne „Mark of the Web“), deshalb fragt SmartScreen dabei in der Regel
+nicht; der Installer läuft im Modus „passive“ (nur Fortschrittsbalken). Auf einem echten
+PC bestätigen (4.4).
+
+Weg über **Azure Trusted Signing** (heißt inzwischen auch „Azure Artifact Signing“):
+
+| | |
+| --- | --- |
+| Kosten | Basic **9,99 USD/Monat** (5.000 Signaturen, 1 Zertifikatprofil — reicht), Abrechnung über ein Azure-Abo (Kreditkarte). Kein Einmalbetrag, keine Hardware. |
+| Voraussetzung | Organisation mit Sitz u. a. in der EU und **nachweisbar mindestens 3 Jahren Geschäftstätigkeit** (Microsoft-Vorgabe für „Public Trust“, Stand 2025 — vor dem Abschluss auf learn.microsoft.com unter „Trusted Signing / Artifact Signing“ nachsehen). Ist die GmbH jünger: Signatur über ein klassisches OV-Zertifikat (ca. 200–400 €/Jahr, mit Hardware-Token bzw. Cloud-HSM; dann passe ich `signCommand` an). |
+| Identitätsprüfung | Sinclair's Solutions GmbH: Name und Anschrift genau wie im Handelsregister, Handelsregisternummer, ggf. Website/Domain mit Firmen-E-Mail. Dauer laut Microsoft einige Werktage bis ca. 3 Wochen; es können Unterlagen nachgefordert werden. |
+| SmartScreen danach | Herausgeber „Sinclair's Solutions GmbH“ statt „Unbekannt“. Die Reputation baut sich über Downloads auf — in den ersten Tagen kann SmartScreen trotzdem noch warnen. |
+
+Schritte (alles im Azure-Portal, portal.azure.com):
+
+- [ ] 1. Azure-Abo anlegen (falls keins da ist) → Abonnement → Ressourcenanbieter →
+      `Microsoft.CodeSigning` registrieren.
+- [ ] 2. Ressource **„Trusted Signing Account“** anlegen: Region **West Europe**,
+      Tarif **Basic**, Name z. B. `sinclair-atlas` (= Konto).
+- [ ] 3. Dir selbst auf dem Konto die Rolle **„Trusted Signing Identity Verifier“** geben
+      (Zugriffssteuerung (IAM)).
+- [ ] 4. Konto → **Identity validation** → *New* → **Public** → *Organization* →
+      Firmendaten der GmbH eintragen, absenden, Prüfung abwarten (Status „Completed“).
+- [ ] 5. Konto → **Certificate profiles** → *Create* → **Public Trust**, mit der geprüften
+      Identität verknüpfen, Name z. B. `atlas-desktop` (= Zertifikatprofil).
+- [ ] 6. Microsoft Entra ID → **App-Registrierungen** → *Neu* (z. B. `atlas-desktop-ci`) →
+      „Zertifikate & Geheimnisse“ → **Geheimer Clientschlüssel** erstellen (Ablaufdatum
+      notieren, z. B. 24 Monate). Auf dem Trusted-Signing-Konto dieser App die Rolle
+      **„Trusted Signing Certificate Profile Signer“** geben.
+- [ ] 7. GitHub `SinclairsSolutions/atlas-desktop` → Settings → Secrets and variables →
+      Actions → **Secrets**:
+
+      | Secret | Wert |
+      | --- | --- |
+      | `AZURE_CLIENT_ID` | Anwendungs-ID (Client-ID) der App-Registrierung |
+      | `AZURE_CLIENT_SECRET` | Wert (nicht die ID) des geheimen Clientschlüssels |
+      | `AZURE_TENANT_ID` | Verzeichnis-ID (Mandant) |
+
+- [ ] 8. Mir Konto- und Profilnamen nennen (keine Geheimnisse) — ich trage sie in
+      `src-tauri/tauri.windows-signatur.conf.json` ein (`ERSETZEN_ENDPUNKT` =
+      `https://weu.codesigning.azure.net`, `ERSETZEN_KONTO`, `ERSETZEN_ZERTIFIKATPROFIL`).
+      Der Workflow bricht ab, solange dort noch `ERSETZEN_` steht und die Signatur an ist.
+- [ ] 9. Repo-**Variable** `WINDOWS_SIGNIEREN = true`. Der Schritt „Installer prüfen“
+      schlägt fehl, wenn der Installer dann nicht gültig signiert ist.
+
+### 4.3 Einschalten (kostenlos)
+
+- [ ] Branch `windows-ausliefern` (baut auf `finder-ablage` auf) nach `main` übernehmen.
+- [ ] Vorher einmal auf einem Windows-PC testen (4.4) — mit dem Artefakt eines Laufs
+      (`gh workflow run bauen.yml --ref main -f windows_probe=true` → Artefakt
+      `Sinclair-Atlas-Windows`).
+- [ ] Repo-**Variable** `WINDOWS_AUSLIEFERN = true` (Settings → Secrets and variables →
+      Actions → *Variables*). Ab dem nächsten Tag landet Windows im Release-Entwurf.
+      Neue Secrets braucht es dafür nicht (Updater-Schlüssel ist schon da).
+- [ ] Nach dem Lauf im Entwurf prüfen: Assets `Sinclair.Atlas_<v>_x64-setup.exe`, `.sig`,
+      `windows.json`; `latest.json` enthält `windows-x86_64`. Dann *Publish*.
+- [ ] Atlas-Branch `windows-download` mergen und deployen — erst dann erscheint der
+      Windows-Knopf in Profil → Apps (er zeigt sich nur, wenn der veröffentlichte Release
+      einen Installer hat; vorher ändert sich nichts).
+- [ ] Zurück: Variable löschen oder auf `false` → nächste Version wieder nur Mac. Schon
+      installierte Windows-Apps bleiben dann auf ihrer Version (Updater findet keinen
+      Windows-Eintrag), bis die Variable wieder an ist.
+
+### 4.4 Auf einem Windows-PC testen (Windows 10 22H2 oder Windows 11, x64)
+
+Der Code ist nur übersetzt, **gestartet hat ihn noch niemand.**
+
+- [ ] Installer starten: SmartScreen-Warnung (unsigniert) → „Weitere Informationen“ →
+      „Trotzdem ausführen“. Keine Admin-Abfrage. Ohne WebView2 lädt der Installer es
+      nach (braucht Internet; Windows 11 hat es schon).
+- [ ] Startmenü-Eintrag und Symbol in Taskleiste/Titelleiste/Alt+Tab: randlos, groß
+      genug, scharf (100 % und 150 % Anzeigeskalierung). Einstellungen → App-Symbol
+      Weiß ausprobieren und zurück.
+- [ ] Anmelden mit MFA, nach Neustart noch angemeldet.
+- [ ] Infobereich: Atlas- und Schlüssel-Symbol sichtbar (helle und dunkle Taskleiste);
+      Linksklick Atlas → Menü; Schlüssel → Passwort-Schnellzugriff erscheint über der
+      Taskleiste.
+- [ ] Fenster schließen (X) → App läuft im Infobereich weiter, Mitteilungen kommen;
+      „Atlas öffnen“ holt sie zurück; „Sinclair Atlas beenden“ beendet. Mit
+      Infobereich-Symbol aus: X beendet.
+- [ ] Mitteilungen (erst nach Installation, vorher unter falschem Namen),
+      Zahl an der Taskleiste (Overlay).
+- [ ] Strg+R/F5/F11/Alt+←, Strg+Alt+A (Schnellerfassung), Downloads (WebView2-Leiste),
+      Datei-Auswahl, Drag & Drop, Mikrofon.
+- [ ] Deep-Link: Win+R → `sinclair-atlas://open/mitteilungen`; zweiter Start mit Link
+      bei laufender App.
+- [ ] Ablage im Explorer (siehe 6, Windows): einschalten, `%USERPROFILE%\Atlas`, Datei
+      öffnen, neue Datei, umbenennen, löschen → Atlas-Papierkorb; App beenden → nicht
+      geladene Dateien öffnen sich nicht. **Hier ist das größte Risiko** — notfalls den
+      Schalter vor dem Ausliefern unter Windows ausblenden (sag Bescheid).
+- [ ] **Update:** Version N installieren, N+1 mit `WINDOWS_AUSLIEFERN` veröffentlichen →
+      die App fragt nach spätestens 20 s, installiert (Fortschrittsbalken), startet neu.
+- [ ] Deinstallieren über Einstellungen → Apps.
+
+### 4.5 Später / optional
+
+- [ ] ARM64-Build (`aarch64-pc-windows-msvc`). Bis dahin läuft die x64-Version auf
+      Windows-on-ARM per Emulation.
+- [ ] „Öffnen mit“ bzw. Dateien auf das Taskleisten-Symbol: unter Windows kommen sie als
+      Startargumente an, das wertet die App noch nicht aus (macOS: `RunEvent::Opened`).
+- [ ] Ordner „Atlas“ in der Explorer-Navigationsleiste (braucht Paket-Identität/Signatur, siehe 6).
 
 ---
 
@@ -293,7 +419,7 @@ veröffentlicht und **nicht** signiert.
 | Repo | `SinclairsSolutions/atlas-desktop` (wie `sinclair-atlas`), noch nicht angelegt. Das ist dein Schritt bzw. dein Okay (1.1). |
 | Secrets | Gleiche Namen wie im Atlas-Repo, damit dieselben Werte passen. Notarisierung über Apple-ID + app-spezifisches Passwort (wie dort), nicht über einen App-Store-Connect-API-Schlüssel. |
 | macOS | ab 12 (Monterey). Keine App-Sandbox (Vertrieb mit Developer ID, nicht über den App Store). Rechte: Mikrofon und Kamera (Meetings, Sprachnachrichten). |
-| Schließen | macOS: roter Knopf blendet aus (App läuft weiter, Dock-Zahl bleibt). Windows: beendet. |
+| Schließen | macOS: roter Knopf blendet aus (App läuft weiter, Dock-Zahl bleibt). Windows: blendet in den Infobereich aus, solange das Symbol dort an ist; sonst beendet. |
 | Was in der App bleibt | Atlas-Seiten, `about:blank`/`blob:`/`data:` (Zweitfenster, Vorschauen). **Alles andere** im Hauptframe geht in den Browser, auch signierte Speicher-Links, die Atlas per `window.open` öffnet. |
 | iframes | Fremde Inhalte **innerhalb** einer Atlas-Seite (Vorschauen) bleiben erlaubt. WebKit unterscheidet Navigationen von iframes nicht vom Hauptframe, daher ist der Hauptframe dreifach abgesichert (siehe Kopf von `fenster.rs`). |
 | Anmeldungen | Liste der Anmelde-Hosts in `ziel.rs` (Google, Microsoft, Apple, Stripe, Slack, PayPal, SumUp, DATEV, finAPI). Bank-Login im Browser statt im App-Fenster. |
@@ -394,4 +520,4 @@ wie auf dem Mac (`src-tauri/src/ablage/api.rs`).
   WinRT-Registrierung `StorageProviderSyncRootManager`, die für nicht
   paketierte Apps Identität/Signatur verlangt) — Zugang über
   „Im Explorer zeigen“ bzw. den Benutzerordner.
-- Der Windows-Installer wird weiterhin nicht ausgeliefert (siehe Abschnitt 4).
+- Der Windows-Installer wird erst mit `WINDOWS_AUSLIEFERN = true` ausgeliefert (siehe Abschnitt 4).

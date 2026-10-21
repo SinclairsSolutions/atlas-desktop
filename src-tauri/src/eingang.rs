@@ -19,7 +19,7 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
-use crate::{einstellungen, fenster, importordner, texte::t, ziel, zustand::Zustand};
+use crate::{einstellungen, fenster, importordner, texte::t, ziel};
 
 /// Größte Datei, die übergeben wird (Atlas-Upload-Grenze für Belege).
 const MAX_BYTES: u64 = 25 * 1024 * 1024;
@@ -306,7 +306,6 @@ pub fn geoeffnet(app: &AppHandle, urls: &[url::Url]) {
     }
     if n > 0 {
         fenster::hauptfenster_zeigen(app);
-        let _ = app.state::<Zustand>();
     }
 }
 
