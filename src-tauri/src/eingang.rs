@@ -294,6 +294,7 @@ pub fn starten(app: AppHandle) {
 
 /// Dateien, die aufs Dock-Symbol gezogen bzw. mit „Öffnen mit“ an die App
 /// gegeben wurden (macOS: RunEvent::Opened).
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 pub fn geoeffnet(app: &AppHandle, urls: &[url::Url]) {
     let mut n = 0;
     for u in urls {

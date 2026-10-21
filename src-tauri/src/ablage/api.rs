@@ -35,9 +35,12 @@ pub struct ServerEintrag {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Liste {
+    // Vom Server mitgeliefert; der Abgleich braucht beide (noch) nicht.
+    #[allow(dead_code)]
     pub workspace_id: String,
     pub schreiben: bool,
     pub loeschen: bool,
+    #[allow(dead_code)]
     pub fingerabdruck: String,
     pub eintraege: Vec<ServerEintrag>,
 }

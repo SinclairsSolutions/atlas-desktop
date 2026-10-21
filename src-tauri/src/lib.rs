@@ -19,7 +19,9 @@ mod werkzeuge;
 mod ziel;
 mod zustand;
 
-use tauri::{Manager, RunEvent, WindowEvent};
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+use tauri::RunEvent;
+use tauri::{Manager, WindowEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_window_state::StateFlags;
 
