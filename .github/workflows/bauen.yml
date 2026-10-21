@@ -226,6 +226,8 @@ jobs:
           # dreimal versuchen, bevor der Lauf als fehlgeschlagen gilt.
           for versuch in 1 2 3; do
             if xcrun stapler validate "$APP"; then break; fi
+            # Notarisiert, aber kein Ticket angeheftet (kam vor) — nachholen.
+            xcrun stapler staple "$APP" || true
             [ "$versuch" = 3 ] && exit 1
             sleep 20
           done
