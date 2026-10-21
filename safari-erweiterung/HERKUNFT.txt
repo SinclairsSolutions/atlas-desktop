@@ -1,2 +1,2 @@
-Atlas Passwort-Safe 0.2.1
-Aus sinclair-atlas 415aec6d1, übernommen 2026-10-21
+Atlas Passwort-Safe 0.2.2
+Aus sinclair-atlas 6c194a2dc, übernommen 2026-10-21
