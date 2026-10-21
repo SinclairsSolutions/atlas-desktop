@@ -411,3 +411,17 @@ wie auf dem Mac (`src-tauri/src/ablage/api.rs`).
   Kamera/Mikrofon weiterhin nur auf Atlas-Adressen (`on_permission_request`).
 - Testen: Rechtsklick-Aktionen und Hinweis im Finder; Sprachnachricht in der App
   (erste Aufnahme → Systemabfrage), Mikrofonwahl im Chat.
+
+### Release 0.3.0 (Ablage im Finder für alle)
+
+- Standard: **aus**. Erst Einstellungen → „Ablage im Finder“ meldet die Domäne an.
+  Wer es nie eingeschaltet hat: kein Schlüsselbund-Zugriff, keine Domäne, kein
+  Neuaufbau (der einmalige Neuaufbau läuft nur bei eingeschalteter Ablage).
+- Windows: Explorer-Ablage wird mitgebaut, der Schalter bleibt aber verborgen
+  (`FREIGEGEBEN` in `src-tauri/src/ablage/windows.rs`), bis sie auf einem echten
+  Windows-Rechner getestet ist.
+- Seitenleisten-Symbol: SF Symbol `globe.europe.africa.fill`
+  (`CFBundleIcons → CFBundlePrimaryIcon → CFBundleSymbolName` in
+  `finder-ablage/Info.plist`). Eigenes Atlas-Zeichen: braucht eine Vektorfassung
+  (SVG/PDF) des Zeichens, daraus ein Custom Symbol (.symbolset) und einen
+  Asset-Katalog der Erweiterung (actool im Workflow).

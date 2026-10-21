@@ -108,8 +108,13 @@ fn breit(p: &Path) -> HSTRING {
     HSTRING::from(p.as_os_str())
 }
 
+/// Noch nie auf einem echten Windows-Rechner gelaufen: der Schalter bleibt
+/// verborgen („nicht enthalten“), bis die Explorer-Ablage dort getestet ist.
+/// Zum Testen auf `true` setzen.
+const FREIGEGEBEN: bool = false;
+
 pub fn eingebaut() -> bool {
-    true
+    FREIGEGEBEN
 }
 
 // ---------------------------------------------------------------------------

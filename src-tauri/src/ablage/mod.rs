@@ -268,7 +268,8 @@ pub fn ablage_status(app: AppHandle) -> Status {
     let g = laden(&app);
     Status {
         gewuenscht: g.gewuenscht && plattform::eingebaut(),
-        verbunden: verbunden(&g),
+        // Ohne Einschalten nie den Schlüsselbund anfassen (läuft bei jedem Seitenaufruf).
+        verbunden: g.gewuenscht && verbunden(&g),
         geraet_id: g.geraet_id.clone(),
         geraet_name: Some(g.geraet_name.clone().unwrap_or_else(geraet_name)),
     }

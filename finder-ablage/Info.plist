@@ -28,6 +28,18 @@
   <string>12.0</string>
   <key>NSHumanReadableCopyright</key>
   <string>© Sinclairs Solutions</string>
+  <!-- Symbol in der Finder-Seitenleiste (Orte): SF Symbol, siehe Apple
+       „Setting the Finder Sidebar Icon“. Ein eigenes Atlas-Zeichen ginge als
+       Custom Symbol (.symbolset im Asset-Katalog der Erweiterung) — dafür
+       fehlt noch eine Vektorfassung des Zeichens. -->
+  <key>CFBundleIcons</key>
+  <dict>
+    <key>CFBundlePrimaryIcon</key>
+    <dict>
+      <key>CFBundleSymbolName</key>
+      <string>globe.europe.africa.fill</string>
+    </dict>
+  </dict>
   <key>NSExtension</key>
   <dict>
     <key>NSExtensionPointIdentifier</key>
