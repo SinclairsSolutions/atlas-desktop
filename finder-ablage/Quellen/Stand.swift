@@ -31,6 +31,10 @@ struct Gespeichert: Codable, Equatable {
     var loeschen: Bool
     /// Nur lesbar (signierte Fassung). Optional, damit ältere Stände lesbar bleiben.
     var nurLesen: Bool? = nil
+    /// "workspace" | "universe_intern"
+    var sichtbarkeit: String? = nil
+    /// Darf die Person die Sichtbarkeit umstellen?
+    var intern: Bool? = nil
 
     /// UUID in Atlas (ohne Präfix).
     var atlasId: String { String(id.dropFirst(2)) }
@@ -219,7 +223,7 @@ final class Stand {
     /// Protokoll, der Finder kennt den neuen Stand schon.
     func setzen(_ e: Gespeichert) {
         sperre.lock(); defer { sperre.unlock() }
-        d.eintraege[e.id] = e
+        d.eintraege[e.id] = mitIntern(e)
         speichern()
     }
 
@@ -227,10 +231,18 @@ final class Stand {
     /// Server neu angelegt hat).
     func setzenUndMelden(_ e: Gespeichert) {
         sperre.lock(); defer { sperre.unlock() }
-        d.eintraege[e.id] = e
+        d.eintraege[e.id] = mitIntern(e)
         d.anker += 1
         d.protokoll.append(Protokoll(anker: d.anker, id: e.id, geloescht: false))
         speichern()
+    }
+
+    /// „intern“ vom bisherigen Eintrag bzw. Elternordner übernehmen (nicht jede Antwort trägt es).
+    private func mitIntern(_ e: Gespeichert) -> Gespeichert {
+        guard e.intern == nil else { return e }
+        var n = e
+        n.intern = d.eintraege[e.id]?.intern ?? d.eintraege[e.parent]?.intern
+        return n
     }
 
     /// Eintrag samt allem darunter entfernen (der Finder hat sie selbst gelöscht).

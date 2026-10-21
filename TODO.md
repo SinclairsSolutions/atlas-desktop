@@ -395,3 +395,19 @@ wie auf dem Mac (`src-tauri/src/ablage/api.rs`).
   paketierte Apps Identität/Signatur verlangt) — Zugang über
   „Im Explorer zeigen“ bzw. den Benutzerordner.
 - Der Windows-Installer wird weiterhin nicht ausgeliefert (siehe Abschnitt 4).
+
+### 0.3.0-beta.6: Sichtbarkeit und Mikrofon
+
+- Finder zeigt bei „nur Universe-Team“ den Hinweis „Nur Universe-Team“ neben dem
+  Namen (Datei-Dekoration, ab macOS 11) und das lila Schlagwort „Nur Universe“.
+  Rechtsklick → „Für Workspace freigeben“ / „Nur fürs Universe-Team“ (nur für
+  Universe-Interne mit Schreibrecht sichtbar; Atlas prüft selbst).
+  Neue Dateien/Ordner erben die Sichtbarkeit ihres Ordners (Server).
+- Windows: Sichtbarkeit wird noch nicht angezeigt — eigene Status-Symbole im
+  Explorer gehen nur mit der WinRT-Registrierung (`StorageProviderSyncRootManager`),
+  die die App noch nicht nutzt; Kontextmenü-Befehl ebenfalls offen.
+- Mikrofon: `mikrofon_erlaubnis` / `mikrofon_einstellungen` (AVCaptureDevice),
+  über die Brücke `__ATLAS_DESKTOP__.mikrofonErlaubnis()`. Die Seite erhält
+  Kamera/Mikrofon weiterhin nur auf Atlas-Adressen (`on_permission_request`).
+- Testen: Rechtsklick-Aktionen und Hinweis im Finder; Sprachnachricht in der App
+  (erste Aufnahme → Systemabfrage), Mikrofonwahl im Chat.

@@ -1,6 +1,6 @@
 [package]
 name = "atlas-desktop"
-version = "0.3.0-beta.5"
+version = "0.3.0-beta.6"
 description = "Sinclair Atlas als Desktop-App"
 authors = ["Sinclairs Solutions"]
 edition = "2021"
@@ -48,6 +48,7 @@ objc2-safari-services = { version = "0.3", default-features = false, features = 
 block2 = "0.6"
 security-framework = "3"
 objc2-file-provider = { version = "0.3", default-features = false, features = ["std", "block2", "Extension", "NSFileProviderDomain", "NSFileProviderItem", "NSFileProviderEnumerating", "NSFileProviderError"] }
+objc2-av-foundation = { version = "0.3", default-features = false, features = ["std", "block2", "AVCaptureDevice", "AVMediaFormat"] }
 
 [profile.release]
 codegen-units = 1

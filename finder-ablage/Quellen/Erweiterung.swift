@@ -38,7 +38,7 @@ actor Abgleicher {
 }
 
 @objc(AtlasAblageErweiterung)
-final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
+final class Erweiterung: NSObject, NSFileProviderReplicatedExtension, NSFileProviderCustomAction {
     let domain: NSFileProviderDomain
     let stand: Stand
     let server = Server()
@@ -106,9 +106,11 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
         }
         func uebernehmen(_ l: ServerListe, _ ws: WorkspaceInfo) {
             for e in l.eintraege {
-                let g = Self.alsGespeichert(e, workspaceId: ws.id, schreiben: l.schreiben, loeschen: l.loeschen)
+                let g = Self.alsGespeichert(e, workspaceId: ws.id, schreiben: l.schreiben, loeschen: l.loeschen,
+                                            intern: l.intern ?? false)
                 neu[g.id] = g
             }
+            neu["w:" + ws.id]?.intern = l.intern ?? false
             vollstaendig.insert(ws.id)
         }
         func altBehalten(_ ws: WorkspaceInfo) {
@@ -167,7 +169,8 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
         }
     }
 
-    static func alsGespeichert(_ e: ServerEintrag, workspaceId: String, schreiben: Bool, loeschen: Bool) -> Gespeichert {
+    static func alsGespeichert(_ e: ServerEintrag, workspaceId: String, schreiben: Bool, loeschen: Bool,
+                               intern: Bool? = nil) -> Gespeichert {
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let iso2 = ISO8601DateFormatter()
@@ -178,7 +181,8 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
                            groesse: e.groesse, mime: e.mime, version: e.version,
                            inhaltVersion: e.inhaltVersion, metaVersion: e.metaVersion,
                            erstellt: datum(e.erstelltAm), geaendert: datum(e.geaendertAm),
-                           schreiben: schreiben, loeschen: loeschen, nurLesen: e.nurLesen)
+                           schreiben: schreiben, loeschen: loeschen, nurLesen: e.nurLesen,
+                           sichtbarkeit: e.sichtbarkeit, intern: intern)
     }
 
     func fehler(_ e: Error) -> Error {
@@ -466,5 +470,51 @@ enum Hilfsdatei {
         if klein.range(of: #"\.sb-[a-z0-9]+$"#, options: .regularExpression) != nil { return true }
         if ["thumbs.db", "desktop.ini", "icon\r"].contains(klein) { return true }
         return false
+    }
+}
+
+// MARK: Eigene Aktionen im Finder-Kontextmenü (Info.plist: NSExtensionFileProviderActions)
+
+extension Erweiterung {
+    static let aktionWorkspace = "com.sinclairs-solutions.atlas.ablage.fuer-workspace"
+    static let aktionUniverse = "com.sinclairs-solutions.atlas.ablage.nur-universe"
+
+    /// „Für Workspace freigeben“ / „Nur fürs Universe-Team“. Angezeigt nur für
+    /// Universe-Interne (userInfo.kannSicht); Atlas prüft es trotzdem selbst.
+    func performAction(identifier actionIdentifier: NSFileProviderExtensionActionIdentifier,
+                       onItemsWithIdentifiers itemIdentifiers: [NSFileProviderItemIdentifier],
+                       completionHandler: @escaping (Error?) -> Void) -> Progress
+    {
+        let fortschritt = Progress(totalUnitCount: Int64(itemIdentifiers.count))
+        let scope: String
+        switch actionIdentifier.rawValue {
+        case Self.aktionWorkspace: scope = "workspace"
+        case Self.aktionUniverse: scope = "universe_intern"
+        default:
+            completionHandler(NSError(domain: NSCocoaErrorDomain, code: NSFeatureUnsupportedError))
+            return fortschritt
+        }
+        let task = Task {
+            var ersterFehler: Error?
+            for id in itemIdentifiers {
+                guard let g = stand.eintrag(id.rawValue), g.art == .ordner || g.art == .dokument else { continue }
+                do {
+                    let e = try await server.sichtbarkeit(id: g.atlasId, scope: scope)
+                    var neu = Self.alsGespeichert(e, workspaceId: g.workspaceId, schreiben: g.schreiben,
+                                                  loeschen: g.loeschen, intern: g.intern)
+                    neu.parent = g.parent
+                    stand.setzenUndMelden(neu)
+                    protokoll.notice("Sichtbarkeit \(g.id, privacy: .public) → \(scope, privacy: .public)")
+                } catch {
+                    protokoll.error("Sichtbarkeit \(g.id, privacy: .public): \(String(describing: error), privacy: .public)")
+                    if ersterFehler == nil { ersterFehler = fehler(error) }
+                }
+                fortschritt.completedUnitCount += 1
+            }
+            manager?.signalEnumerator(for: .workingSet) { _ in }
+            completionHandler(ersterFehler)
+        }
+        fortschritt.cancellationHandler = { task.cancel() }
+        return fortschritt
     }
 }

@@ -29,12 +29,16 @@ struct ServerEintrag: Codable {
     let geaendertAm: String
     /// Nur lesbar (z. B. signierte Fassung).
     let nurLesen: Bool?
+    /// "workspace" | "universe_intern"
+    let sichtbarkeit: String?
 }
 
 struct ServerListe: Codable {
     let workspaceId: String
     let schreiben: Bool
     let loeschen: Bool
+    /// Darf die Person die Sichtbarkeit umstellen (Universe-intern)?
+    let intern: Bool?
     let fingerabdruck: String
     let eintraege: [ServerEintrag]
 }
@@ -285,6 +289,13 @@ final class Server {
             if let o = ordnerId { koerper["parentId"] = o } else { koerper["parentId"] = NSNull() }
         }
         jsonKoerper(&r, koerper)
+        return try await json(r, EintragAntwort.self).eintrag
+    }
+
+    /// Sichtbarkeit umstellen ("workspace" | "universe_intern").
+    func sichtbarkeit(id: String, scope: String) async throws -> ServerEintrag {
+        var r = try anfrage("sichtbarkeit")
+        jsonKoerper(&r, ["id": id, "scope": scope])
         return try await json(r, EintragAntwort.self).eintrag
     }
 

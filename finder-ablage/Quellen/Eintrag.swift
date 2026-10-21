@@ -51,7 +51,7 @@ final class Eintrag: NSObject, NSFileProviderItem {
 
     var itemVersion: NSFileProviderItemVersion {
         guard let g else { return NSFileProviderItemVersion(contentVersion: Data("w".utf8), metadataVersion: Data("w".utf8)) }
-        let rechte = "\(g.schreiben ? 1 : 0)\(g.loeschen ? 1 : 0)"
+        let rechte = "\(g.schreiben ? 1 : 0)\(g.loeschen ? 1 : 0)\(g.intern == true ? 1 : 0)\(g.sichtbarkeit ?? "")"
         return NSFileProviderItemVersion(contentVersion: Data(Eintrag.inhaltKennung(g.inhaltVersion).utf8),
                                          metadataVersion: Data((g.metaVersion + rechte).utf8))
     }
@@ -91,5 +91,33 @@ final class Eintrag: NSObject, NSFileProviderItem {
             c.formUnion([.allowsWriting, .allowsRenaming, .allowsReparenting, .allowsDeleting])
         }
         return c
+    }
+}
+
+// MARK: Sichtbarkeit „nur Universe-Team“
+
+extension Eintrag {
+    var nurUniverse: Bool { g?.sichtbarkeit == "universe_intern" }
+
+    /// Für die Aktivierungsregeln der Kontextmenü-Aktionen (Info.plist).
+    var userInfo: [AnyHashable: Any]? {
+        guard let g, g.art == .ordner || g.art == .dokument else { return nil }
+        return [
+            "sicht": nurUniverse ? "universe" : "workspace",
+            "kannSicht": (g.intern == true && g.schreiben) ? 1 : 0,
+        ]
+    }
+
+    /// Finder-Schlagwort „Nur Universe“ (lila) — so auch in Listen, Suche und Spotlight sichtbar.
+    var tagData: Data? {
+        guard nurUniverse else { return nil }
+        return try? PropertyListSerialization.data(fromPropertyList: ["Nur Universe\n3"], format: .binary, options: 0)
+    }
+}
+
+extension Eintrag: NSFileProviderItemDecorating {
+    /// Hinweis „Nur Universe-Team“ neben dem Namen (Info.plist: NSFileProviderDecorations).
+    var decorations: [NSFileProviderItemDecorationIdentifier]? {
+        nurUniverse ? [NSFileProviderItemDecorationIdentifier(rawValue: "com.sinclairs-solutions.atlas.ablage.nur-universe")] : nil
     }
 }

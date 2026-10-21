@@ -38,6 +38,39 @@
     <string>KJ63M9QZUG.com.sinclairs-solutions.atlas</string>
     <key>NSExtensionFileProviderSupportsEnumeration</key>
     <true/>
+    <!-- „Nur Universe-Team“ neben dem Namen (Kategorie Sharing = Text, kein eigenes Symbol nötig). -->
+    <key>NSFileProviderDecorations</key>
+    <array>
+      <dict>
+        <key>Identifier</key>
+        <string>com.sinclairs-solutions.atlas.ablage.nur-universe</string>
+        <key>Category</key>
+        <string>Sharing</string>
+        <key>Label</key>
+        <string>Nur Universe-Team</string>
+      </dict>
+    </array>
+    <!-- Kontextmenü: Sichtbarkeit umstellen, nur für Universe-Interne mit Schreibrecht
+         (userInfo.kannSicht, gesetzt in Eintrag.swift); Atlas prüft es zusätzlich. -->
+    <key>NSExtensionFileProviderActions</key>
+    <array>
+      <dict>
+        <key>NSExtensionFileProviderActionIdentifier</key>
+        <string>com.sinclairs-solutions.atlas.ablage.fuer-workspace</string>
+        <key>NSExtensionFileProviderActionName</key>
+        <string>Für Workspace freigeben</string>
+        <key>NSExtensionFileProviderActionActivationRule</key>
+        <string>SUBQUERY ( fileproviderItems, $fileproviderItem, $fileproviderItem.userInfo.kannSicht == 1 AND $fileproviderItem.userInfo.sicht == "universe" ).@count &gt; 0</string>
+      </dict>
+      <dict>
+        <key>NSExtensionFileProviderActionIdentifier</key>
+        <string>com.sinclairs-solutions.atlas.ablage.nur-universe</string>
+        <key>NSExtensionFileProviderActionName</key>
+        <string>Nur fürs Universe-Team</string>
+        <key>NSExtensionFileProviderActionActivationRule</key>
+        <string>SUBQUERY ( fileproviderItems, $fileproviderItem, $fileproviderItem.userInfo.kannSicht == 1 AND $fileproviderItem.userInfo.sicht == "workspace" ).@count &gt; 0</string>
+      </dict>
+    </array>
   </dict>
 </dict>
 </plist>

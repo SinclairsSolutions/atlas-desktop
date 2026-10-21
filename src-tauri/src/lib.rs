@@ -8,6 +8,7 @@ mod erreichbarkeit;
 mod fenster;
 mod importordner;
 mod menue;
+mod mikrofon;
 mod mitteilung;
 mod safari;
 mod sperre;
@@ -92,6 +93,8 @@ pub fn run() {
             werkzeuge::bildschirmfoto,
             safari::safari_erweiterung_status,
             safari::safari_erweiterung_oeffnen,
+            mikrofon::mikrofon_erlaubnis,
+            mikrofon::mikrofon_einstellungen,
             ablage::ablage_status,
             ablage::ablage_verbunden,
             ablage::ablage_fehler,
@@ -126,6 +129,8 @@ pub fn run() {
                         .permission("allow-import-ordner-setzen")
                         .permission("allow-touch-id-pruefen")
                         .permission("allow-geraet-geheimnis")
+                        .permission("allow-mikrofon-erlaubnis")
+                        .permission("allow-mikrofon-einstellungen")
                         .permission("allow-ablage-status")
                         .permission("allow-ablage-verbunden")
                         .permission("allow-ablage-fehler")

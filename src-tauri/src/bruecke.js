@@ -77,6 +77,16 @@
        * Stand ab, koppelt bei Bedarf und meldet Abmeldungen.
        * ablageStatus → { gewuenscht, verbunden, geraetId, geraetName }
        */
+      /** Mikrofon-Erlaubnis von macOS: "erlaubt" | "verweigert" | "eingeschraenkt" | "offen". */
+      mikrofonErlaubnis: function () {
+        return invoke("mikrofon_erlaubnis").catch(function () {
+          return "offen";
+        });
+      },
+      /** Systemeinstellungen → Datenschutz → Mikrofon öffnen. */
+      mikrofonEinstellungen: function () {
+        return invoke("mikrofon_einstellungen");
+      },
       ablageStatus: function () {
         return invoke("ablage_status");
       },
