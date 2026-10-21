@@ -1,3 +1,4 @@
+mod ablage;
 mod aktualisierung;
 mod bruecke;
 mod downloads;
@@ -62,6 +63,7 @@ pub fn run() {
         .manage(importordner::Import::default())
         .manage(sperre::Zustand::default())
         .manage(zustand::Zustand::default())
+        .manage(ablage::Ablage::default())
         .invoke_handler(tauri::generate_handler![
             bruecke::mitteilung,
             bruecke::mitteilungen_erlauben,
@@ -90,6 +92,13 @@ pub fn run() {
             werkzeuge::bildschirmfoto,
             safari::safari_erweiterung_status,
             safari::safari_erweiterung_oeffnen,
+            ablage::ablage_status,
+            ablage::ablage_verbunden,
+            ablage::ablage_fehler,
+            ablage::ablage_abgemeldet,
+            ablage::ablage_info,
+            ablage::ablage_schalten,
+            ablage::ablage_zeigen,
         ])
         .menu(menue::erstellen)
         .on_menu_event(menue::ereignis)
@@ -117,6 +126,10 @@ pub fn run() {
                         .permission("allow-import-ordner-setzen")
                         .permission("allow-touch-id-pruefen")
                         .permission("allow-geraet-geheimnis")
+                        .permission("allow-ablage-status")
+                        .permission("allow-ablage-verbunden")
+                        .permission("allow-ablage-fehler")
+                        .permission("allow-ablage-abgemeldet")
                         .permission("core:window:allow-start-dragging"),
                 )?;
                 log::warn!("Atlas Desktop lädt {}", ziel::start_url());
@@ -146,6 +159,7 @@ pub fn run() {
             werkzeuge::anwenden(&handle, None);
             sperre::beim_start(&handle);
             eingang::starten(handle.clone());
+            ablage::starten(&handle);
             aktualisierung::starten(handle);
             Ok(())
         })
@@ -164,6 +178,7 @@ pub fn run() {
                     fenster::nach_anmeldung_neu_laden(window.app_handle());
                     // Seite geladen und im Vordergrund: wartende Belege übergeben.
                     eingang::abarbeiten(window.app_handle());
+                    ablage::anstossen(window.app_handle());
                 }
             }
             _ => {}

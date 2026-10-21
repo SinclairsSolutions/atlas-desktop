@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- File-Provider-Erweiterung „Ablage im Finder“. Version und Build setzt
+     scripts/finder-ablage-bauen.sh aus package.json. -->
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>de</string>
+  <key>CFBundleDisplayName</key>
+  <string>Atlas Ablage</string>
+  <key>CFBundleExecutable</key>
+  <string>AtlasAblage</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.sinclairs-solutions.atlas.ablage</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>AtlasAblage</string>
+  <key>CFBundlePackageType</key>
+  <string>XPC!</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.0.0</string>
+  <key>CFBundleVersion</key>
+  <string>0.0.0</string>
+  <key>CFBundleSupportedPlatforms</key>
+  <array><string>MacOSX</string></array>
+  <key>LSMinimumSystemVersion</key>
+  <string>12.0</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>© Sinclairs Solutions</string>
+  <key>NSExtension</key>
+  <dict>
+    <key>NSExtensionPointIdentifier</key>
+    <string>com.apple.fileprovider-nonui</string>
+    <key>NSExtensionPrincipalClass</key>
+    <string>AtlasAblageErweiterung</string>
+    <key>NSExtensionFileProviderDocumentGroup</key>
+    <string>KJ63M9QZUG.com.sinclairs-solutions.atlas</string>
+    <key>NSExtensionFileProviderSupportsEnumeration</key>
+    <true/>
+  </dict>
+</dict>
+</plist>

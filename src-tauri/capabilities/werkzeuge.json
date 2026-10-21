@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "werkzeuge",
-  "description": "Mitgelieferte Fenster Einstellungen, Schnellerfassung und Sperre: Geräteeinstellungen, Ordnerwahl, Touch ID, Schnellnotiz an Atlas, Safari-Erweiterung.",
+  "description": "Mitgelieferte Fenster Einstellungen, Schnellerfassung und Sperre: Geräteeinstellungen, Ordnerwahl, Touch ID, Schnellnotiz an Atlas, Safari-Erweiterung, Ablage im Finder.",
   "windows": [
     "einstellungen",
     "notiz",
@@ -26,6 +26,9 @@
     "allow-import-ordner-anlegen",
     "allow-nach-updates-suchen",
     "allow-safari-erweiterung-status",
-    "allow-safari-erweiterung-oeffnen"
+    "allow-safari-erweiterung-oeffnen",
+    "allow-ablage-info",
+    "allow-ablage-schalten",
+    "allow-ablage-zeigen"
   ]
 }

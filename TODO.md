@@ -306,3 +306,66 @@ veröffentlicht und **nicht** signiert.
 | Symbol | Aus `public/brand/atlas-compass.png` (Kompass ohne Schriftzug) im Mac-Format. |
 | Protokoll | `~/Library/Logs/com.sinclairs-solutions.atlas/` (nur Ursprung der geladenen Seite, keine Inhalte). |
 | Werkzeuge | Rust per rustup unter `~/.cargo` installiert (ohne Änderung an deiner Shell-Konfiguration). Für Rust-Befehle im Terminal: `source ~/.cargo/env`. |
+
+---
+
+## 6. Ablage im Finder (Branch `finder-ablage`, noch nicht veröffentlicht)
+
+Die klassische Atlas-Ablage als Ordner „Atlas“ im Finder (File Provider,
+`NSFileProviderReplicatedExtension`). Quellen: `finder-ablage/` (Swift,
+Erweiterung), `src-tauri/src/ablage/` (App: Schalter, Kopplung, Anstoßen),
+`ui/einstellungen.*` (Reiter „Ablage im Finder“). Server: Atlas-Branch
+`finder-ablage` (`src/lib/desktop-ablage.*`, `/api/public/desktop/ablage/*`,
+Migration `20261021200000_desktop_ablage_geraet.sql`).
+
+### Aufbau
+
+| Teil | Wo | Was |
+| --- | --- | --- |
+| Erweiterung | `Contents/PlugIns/AtlasAblage.appex` (`com.sinclairs-solutions.atlas.ablage`) | Finder-Ordner, Platzhalter, Laden beim Öffnen, Hochladen neuer Dateien/Ordner |
+| App | `src-tauri/src/ablage/` | Schalter, Gerätezugang holen (über die angemeldete Atlas-Seite), Domäne an-/abmelden, alle 30 s Abgleich anstoßen |
+| Atlas | `/api/public/desktop/ablage/{workspaces,liste,datei,hochladen,ordner,abmelden}` | Gerätetoken `atlas_abl_…`, Rechte über eine echte Sitzung der Person (RLS) |
+
+Gerätezugang: Atlas stellt ihn nur mit bestandener zweiter Stufe aus; die App
+legt ihn in ihren Schlüsselbund und übergibt ihn einmal über den
+App-Gruppen-Ordner (`~/Library/Group Containers/KJ63M9QZUG.com.sinclairs-solutions.atlas/Ablage/zugang.json`)
+an die Erweiterung, die ihn in ihren eigenen Schlüsselbund übernimmt und die
+Datei löscht. Widerruf: Profil → Apps → „Trennen“, Ausschalten in der App,
+Abmelden in Atlas.
+
+### Selbst erledigen
+
+- [ ] Migration `20261021200000_desktop_ablage_geraet.sql` im Atlas-Repo erst
+      im Testprojekt, dann nach Freigabe in der Produktion ausführen.
+- [ ] `APP_ENCRYPTION_KEY` muss auf dem Server gesetzt sein (wird schon für
+      Signaturen genutzt) — der Server verschlüsselt damit seine Sitzung je Gerät.
+- [ ] Apple: **zunächst nichts.** App und Erweiterung nutzen die App-Gruppe im
+      macOS-Stil `KJ63M9QZUG.com.sinclairs-solutions.atlas`; die braucht laut
+      Apple (DTS, „App Groups: macOS vs iOS“) kein Bereitstellungsprofil, und
+      der Container-Schutz ab macOS 15 lässt sie ohne Rückfrage zu, weil sie
+      mit der Team-ID beginnt.
+      **Falls** die Erweiterung auf einem fremden Mac nicht lädt
+      (`addDomain` → Fehler -2001 „provider not found“ oder Zugriff auf den
+      Gruppen-Ordner verweigert): Im Developer-Konto für
+      `com.sinclairs-solutions.atlas` und `com.sinclairs-solutions.atlas.ablage`
+      je eine explizite App-ID mit „App Groups“ (Gruppe
+      `KJ63M9QZUG.com.sinclairs-solutions.atlas`) anlegen, je ein
+      **Developer ID**-Bereitstellungsprofil erzeugen und als Secrets
+      hinterlegen — dann baue ich das Einbetten
+      (`Contents/embedded.provisionprofile`) und `com.apple.application-identifier`
+      in den Workflow ein.
+
+### Testen (erst nach Migration + Deploy des Atlas-Branches)
+
+- [ ] Workflow auf dem Branch starten: `gh workflow run bauen.yml --ref finder-ablage`
+      (nur Artefakte, kein Release), DMG laden, App nach „Programme“.
+- [ ] Einstellungen → „Ablage im Finder“ einschalten → Finder zeigt links „Sinclair Atlas“ /
+      „Ablage“ mit den Workspaces.
+- [ ] Datei öffnen (lädt), Rechtsklick „Download entfernen“, „Immer behalten“.
+- [ ] Neue Datei und neuen Ordner im Finder anlegen → erscheint in Atlas
+      (Timeline: `document.uploaded` / `folder.created`, Quelle `desktop_ablage`).
+- [ ] In Atlas Ordner anlegen, Dokument verschieben/umbenennen → binnen ~30 s im Finder.
+- [ ] Vertrauliches Dokument → erscheint nie. Recht entziehen → Workspace verschwindet.
+- [ ] Profil → Apps → Gerät trennen → beim nächsten Abgleich verschwindet alles.
+- [ ] In Atlas abmelden → Ordner weg; wieder anmelden → verbindet sich von selbst.
+- [ ] FileVault aus → Hinweis im Reiter.

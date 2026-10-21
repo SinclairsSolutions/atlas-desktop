@@ -4,6 +4,8 @@
   Rechte unter der Hardened Runtime (Pflicht für die Notarisierung).
   Keine App-Sandbox: Downloads in den Download-Ordner und das Öffnen von Links
   im Standardbrowser laufen ohne. Passkeys siehe Entitlements.passkeys.plist.
+  App-Gruppe (macOS-Stil mit Team-ID, ohne Bereitstellungsprofil gültig):
+  Übergabe des Gerätezugangs an die Erweiterung „Ablage im Finder“.
 -->
 <plist version="1.0">
 <dict>
@@ -11,5 +13,9 @@
   <true/>
   <key>com.apple.security.device.camera</key>
   <true/>
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>KJ63M9QZUG.com.sinclairs-solutions.atlas</string>
+  </array>
 </dict>
 </plist>

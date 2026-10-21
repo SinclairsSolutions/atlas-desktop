@@ -160,6 +160,47 @@
   // Nach dem Einschalten in Safari zurück in die App: Stand neu holen.
   window.addEventListener("focus", function () { if (stand && stand.plattform === "macos") safariStand(); });
 
+
+  // ---- Ablage im Finder ----
+  var ablageInfo = null;
+  function ablageZeigenStand() {
+    return inv("ablage_info").then(function (i) {
+      ablageInfo = i;
+      $("ablageAn").checked = !!i.gewuenscht;
+      $("ablageAn").disabled = !i.eingebaut;
+      var text;
+      if (!i.eingebaut) text = tt("In dieser App-Version nicht enthalten.", "Not included in this app version.");
+      else if (i.verbunden) text = tt("Verbunden", "Connected") + (i.geraetName ? " · " + i.geraetName : "");
+      else if (i.gewuenscht) text = tt("Wartet auf Anmeldung in Atlas …", "Waiting for sign-in to Atlas …");
+      else text = tt("Aus", "Off");
+      $("ablageStand").textContent = text;
+      sichtbar($("ablageZeigenZeile"), !!i.verbunden);
+      var f = $("ablageFehler");
+      f.textContent = i.fehler || "";
+      sichtbar(f, !!i.fehler);
+      var v = $("ablageVerschluesselung");
+      if (i.verschluesselung === false) {
+        v.textContent = i.plattform === "windows"
+          ? tt("BitLocker ist auf diesem PC aus. Geöffnete Dateien liegen dann unverschlüsselt auf der Festplatte. Empfehlung: BitLocker einschalten.", "BitLocker is off on this PC. Opened files are then stored unencrypted on disk. Recommendation: turn on BitLocker.")
+          : tt("FileVault ist auf diesem Mac aus. Geöffnete Dateien liegen dann unverschlüsselt auf der Festplatte. Empfehlung: Systemeinstellungen → Datenschutz & Sicherheit → FileVault einschalten.", "FileVault is off on this Mac. Opened files are then stored unencrypted on disk. Recommendation: turn on FileVault in System Settings → Privacy & Security.");
+        sichtbar(v, true);
+      } else sichtbar(v, false);
+    }).catch(function () {});
+  }
+  $("ablageAn").onchange = function () {
+    var an = this.checked;
+    inv("ablage_schalten", { an: an })
+      .then(function (m) { melden(m || ""); })
+      .catch(function (e) { melden(String(e), true); })
+      .then(ablageZeigenStand);
+  };
+  $("ablageZeigen").onclick = function () {
+    inv("ablage_zeigen").catch(function (e) { melden(String(e), true); });
+  };
+  // Stand (verbunden, Fehler) beim Fokus und alle 4 Sekunden neu lesen.
+  window.addEventListener("focus", ablageZeigenStand);
+  setInterval(function () { if (document.visibilityState === "visible") ablageZeigenStand(); }, 4000);
+
   function laden() { return inv("einstellungen_lesen").then(function (r) { stand = r; zeigen(); }); }
   function setzen(patch) {
     var neu = Object.assign({}, stand.einstellungen, patch);
@@ -228,6 +269,7 @@
     );
   }
   laden().then(function () {
+    ablageZeigenStand();
     // Die Safari-Erweiterung gibt es nur auf dem Mac.
     if (stand.plattform === "macos") safariStand();
     else {

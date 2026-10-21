@@ -197,6 +197,23 @@ jobs:
           echo "ERWEITERUNG_NAME=$NAME" >> "$GITHUB_ENV"
           echo "ERWEITERUNG_ID=$ERWEITERUNG_ID" >> "$GITHUB_ENV"
 
+      # File-Provider-Erweiterung „Ablage im Finder“ (finder-ablage/) — ohne
+      # Xcode-Projekt mit swiftc gebaut, universal, mit eigener Signatur
+      # (Sandbox + App-Gruppe im macOS-Stil mit Team-ID, kein Profil nötig).
+      # Kommt wie die Safari-Erweiterung über bundle.macOS.files nach Contents/PlugIns.
+      - name: Ablage-Erweiterung bauen und signieren
+        run: |
+          set -euo pipefail
+          mkdir -p build/ablage
+          bash scripts/finder-ablage-bauen.sh "$GITHUB_WORKSPACE/build/ablage" "$APPLE_SIGNING_IDENTITY"
+          APPEX="$GITHUB_WORKSPACE/build/ablage/AtlasAblage.appex"
+          codesign -d --entitlements - "$APPEX"
+          /usr/libexec/PlistBuddy -c "Print :NSExtension" "$APPEX/Contents/Info.plist"
+          jq --arg v "$APPEX" '.bundle.macOS.files["PlugIns/AtlasAblage.appex"] = $v' \
+            "$RUNNER_TEMP/tauri.safari.conf.json" > "$RUNNER_TEMP/tauri.erweiterungen.conf.json"
+          cp "$RUNNER_TEMP/tauri.erweiterungen.conf.json" "$RUNNER_TEMP/tauri.safari.conf.json"
+          cat "$RUNNER_TEMP/tauri.safari.conf.json"
+
       - name: Bauen, signieren, notarisieren (Release-Entwurf bei Tag)
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
@@ -237,12 +254,28 @@ jobs:
           [ -n "$T_APP" ] && [ "$T_APP" = "$T_EXT" ] || { echo "::error::Team-ID von App und Erweiterung verschieden"; exit 1; }
           [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APPEX/Contents/Info.plist")" = "$ERWEITERUNG_ID" ]
 
+          # Ablage-Erweiterung: eingebaut, Sandbox + App-Gruppe, gleiches Team.
+          ABL="$APP/Contents/PlugIns/AtlasAblage.appex"
+          test -d "$ABL" || { echo "::error::$ABL fehlt in der App"; exit 1; }
+          codesign --verify --strict --verbose=2 "$ABL"
+          RECHTE=$(codesign -d --entitlements - "$ABL" 2>/dev/null || true)
+          case "$RECHTE" in *com.apple.security.app-sandbox*) ;; *) echo "::error::Ablage-Erweiterung ohne Sandbox"; exit 1;; esac
+          case "$RECHTE" in *KJ63M9QZUG.com.sinclairs-solutions.atlas*) ;; *) echo "::error::Ablage-Erweiterung ohne App-Gruppe"; exit 1;; esac
+          T_ABL=$(codesign -dv "$ABL" 2>&1 | sed -n 's/^TeamIdentifier=//p')
+          [ "$T_APP" = "$T_ABL" ] || { echo "::error::Team-ID der Ablage-Erweiterung verschieden"; exit 1; }
+          [ "$T_APP" = "KJ63M9QZUG" ] || echo "::warning::Team-ID $T_APP — App-Gruppe in finder-ablage/ und src-tauri anpassen"
+          RECHTE_APP=$(codesign -d --entitlements - "$APP" 2>/dev/null || true)
+          case "$RECHTE_APP" in *KJ63M9QZUG.com.sinclairs-solutions.atlas*) ;; *) echo "::error::App ohne App-Gruppe signiert"; exit 1;; esac
+
           # Updater-Paket enthält die Erweiterung (sonst verlöre sie jedes Update).
           TGZ="$APP.tar.gz"
           if [ -f "$TGZ" ]; then
             # grep ohne -q: liest alles, sonst bricht tar mit SIGPIPE ab (pipefail).
-            tar -tzf "$TGZ" | grep -F "Contents/PlugIns/$ERWEITERUNG_NAME/Contents/Info.plist" > /dev/null \
+            tar -tzf "$TGZ" > "$RUNNER_TEMP/tgz-liste.txt"
+            grep -F "Contents/PlugIns/$ERWEITERUNG_NAME/Contents/Info.plist" "$RUNNER_TEMP/tgz-liste.txt" > /dev/null \
               || { echo "::error::Updater-Paket ohne Safari-Erweiterung"; exit 1; }
+            grep -F "Contents/PlugIns/AtlasAblage.appex/Contents/Info.plist" "$RUNNER_TEMP/tgz-liste.txt" > /dev/null \
+              || { echo "::error::Updater-Paket ohne Ablage-Erweiterung"; exit 1; }
           else
             echo "::warning::Kein Updater-Paket gefunden ($TGZ)"
           fi

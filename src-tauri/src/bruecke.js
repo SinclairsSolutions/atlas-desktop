@@ -38,7 +38,7 @@
       // "__SCHEMA__://open/workspaces/<id>/communication/mail"
       schema: "__SCHEMA__",
       // Fähigkeiten, nach denen Atlas fragen kann.
-      kann: Object.freeze({ eingang: true, notiz: true, touchId: "__PLATTFORM__" === "macos", fensterZiehen: true, importOrdner: true }),
+      kann: Object.freeze({ eingang: true, notiz: true, touchId: "__PLATTFORM__" === "macos", fensterZiehen: true, importOrdner: true, ablage: true }),
       /** Gerade gespeicherte Datei im Finder zeigen (nur nach Namen). */
       imFinderZeigen: function (name) {
         return invoke("im_finder_zeigen", { name: String(name || "") });
@@ -71,6 +71,27 @@
           };
         });
         return invoke("import_ordner_setzen", { workspaces: workspaces });
+      },
+      /**
+       * Ablage im Finder/Explorer (siehe src-tauri/src/ablage): Atlas fragt den
+       * Stand ab, koppelt bei Bedarf und meldet Abmeldungen.
+       * ablageStatus → { gewuenscht, verbunden, geraetId, geraetName }
+       */
+      ablageStatus: function () {
+        return invoke("ablage_status");
+      },
+      ablageVerbunden: function (z) {
+        return invoke("ablage_verbunden", {
+          token: String((z && z.token) || ""),
+          geraetId: String((z && z.geraetId) || ""),
+          name: String((z && z.name) || ""),
+        });
+      },
+      ablageFehler: function (meldung) {
+        return invoke("ablage_fehler", { meldung: String(meldung || "") });
+      },
+      ablageAbgemeldet: function () {
+        return invoke("ablage_abgemeldet");
       },
       /** Bestätigung der Eingangs-Uploads (Dateien aus Dock, Ordner, Menüleiste). */
       dateienErledigt: function (erledigt, fehler, ziel) {
