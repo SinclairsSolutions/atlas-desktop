@@ -21,9 +21,14 @@ actor Abgleicher {
     private var laufend: Task<Void, Error>?
     private var zuletzt: Date = .distantPast
 
-    func abgleichen(maxAlter: TimeInterval, _ arbeit: @escaping () async throws -> Void) async throws {
-        if Date().timeIntervalSince(zuletzt) < maxAlter { return }
-        if let t = laufend { return try await t.value }
+    func abgleichen(maxAlter: TimeInterval, erzwingen: Bool = false, _ arbeit: @escaping () async throws -> Void) async throws {
+        if !erzwingen, Date().timeIntervalSince(zuletzt) < maxAlter { return }
+        if let t = laufend {
+            // Erzwingen (z. B. Workspace eben geöffnet): laufenden abwarten, dann neu.
+            if !erzwingen { return try await t.value }
+            _ = try? await t.value
+            if let t2 = laufend { return try await t2.value }
+        }
         let t = Task { try await arbeit() }
         laufend = t
         defer { laufend = nil }
@@ -43,6 +48,29 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
         self.domain = domain
         stand = Stand(domain: domain.identifier.rawValue)
         super.init()
+        protokoll.notice("Erweiterung gestartet (Domäne \(domain.identifier.rawValue, privacy: .public), Epoche \(Stand.epoche))")
+        if stand.epocheGewechselt { geladeneRaeumen() }
+    }
+
+    /// Nach einem Epochenwechsel: lokal geladene Dateien verwerfen (bis
+    /// 0.3.0-beta.4 konnten sie leer sein). Geänderte, noch nicht hochgeladene
+    /// Dateien lässt macOS dabei unangetastet (evictItem schlägt dann fehl).
+    private func geladeneRaeumen() {
+        let ids = stand.alle().filter { $0.art == .dokument }.map(\.id)
+        Task { [weak self] in
+            guard let m = self?.manager else { return }
+            var ok = 0
+            for id in ids {
+                do {
+                    try await m.evictItem(identifier: NSFileProviderItemIdentifier(id))
+                    ok += 1
+                } catch {
+                    // nicht geladen oder ungespeicherte Änderung — beides in Ordnung
+                }
+            }
+            protokoll.notice("Epochenwechsel: \(ok) von \(ids.count) Dateien verworfen")
+            m.signalEnumerator(for: .workingSet) { _ in }
+        }
     }
 
     func invalidate() {}
@@ -52,8 +80,8 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
     // MARK: Abgleich
 
     /// Holt den Serverstand und übernimmt ihn (höchstens alle `maxAlter` Sekunden).
-    func abgleichen(maxAlter: TimeInterval = 10) async throws {
-        try await abgleicher.abgleichen(maxAlter: maxAlter) { [self] in
+    func abgleichen(maxAlter: TimeInterval = 10, erzwingen: Bool = false) async throws {
+        try await abgleicher.abgleichen(maxAlter: maxAlter, erzwingen: erzwingen) { [self] in
             do {
                 try await abgleichJetzt()
             } catch ServerFehler.widerrufen {
@@ -87,13 +115,15 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
             for e in stand.alle() where e.workspaceId == ws.id && e.art != .workspace { neu[e.id] = e }
         }
 
-        if let alles = try await server.alles() {
+        let geoeffnet = stand.geoeffneteWorkspaces()
+        if let alles = try await server.alles(nur: geoeffnet) {
             // Eine Anfrage; der Server lädt die Workspaces parallel.
             for ws in alles.workspaces {
                 workspaceEintrag(ws)
                 switch alles.listen[ws.id] {
                 case .liste(let l)?: uebernehmen(l, ws)
                 case .fehler("kein_recht")?: vollstaendig.insert(ws.id)
+                case nil where !geoeffnet.contains(ws.id): break // noch nie geöffnet: nur der Ordner
                 default: altBehalten(ws)
                 }
             }
@@ -102,7 +132,7 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
             let workspaces = try await server.workspaces()
             for ws in workspaces { workspaceEintrag(ws) }
             let ergebnisse = await withTaskGroup(of: (String, Result<ServerListe, Error>).self) { gruppe in
-                for ws in workspaces {
+                for ws in workspaces where geoeffnet.contains(ws.id) {
                     gruppe.addTask { [server] in
                         do { return (ws.id, .success(try await server.liste(ws.id))) } catch { return (ws.id, .failure(error)) }
                     }
@@ -111,7 +141,7 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
                 for await (id, e) in gruppe { r[id] = e }
                 return r
             }
-            for ws in workspaces {
+            for ws in workspaces where geoeffnet.contains(ws.id) {
                 switch ergebnisse[ws.id] {
                 case .success(let l)?: uebernehmen(l, ws)
                 case .failure(ServerFehler.keinRecht)?: vollstaendig.insert(ws.id)
@@ -165,6 +195,7 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
         } else if let g = stand.eintrag(identifier.rawValue) {
             completionHandler(Eintrag(g), nil)
         } else {
+            protokoll.notice("Eintrag unbekannt: \(identifier.rawValue, privacy: .public)")
             completionHandler(nil, NSError.fileProviderErrorForNonExistentItem(withIdentifier: identifier))
         }
         return Progress()
@@ -175,7 +206,10 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
                        completionHandler: @escaping (URL?, NSFileProviderItem?, Error?) -> Void) -> Progress
     {
         let fortschritt = Progress(totalUnitCount: 100)
+        let gewuenscht = requestedVersion.flatMap { String(data: $0.contentVersion, encoding: .utf8) } ?? "-"
+        protokoll.notice("Inhalt angefragt: \(itemIdentifier.rawValue, privacy: .public) (Version \(gewuenscht, privacy: .public))")
         guard let g = stand.eintrag(itemIdentifier.rawValue), g.art == .dokument else {
+            protokoll.error("Inhalt: \(itemIdentifier.rawValue, privacy: .public) ist kein bekanntes Dokument")
             completionHandler(nil, nil, NSError.fileProviderErrorForNonExistentItem(withIdentifier: itemIdentifier))
             return fortschritt
         }
@@ -190,6 +224,7 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
                     aktuell.groesse = groesse
                     stand.setzen(aktuell)
                 }
+                protokoll.notice("Inhalt geliefert: \(g.id, privacy: .public), \(groesse) Bytes")
                 completionHandler(ziel, Eintrag(aktuell), nil)
             } catch {
                 protokoll.error("Öffnen \(g.name, privacy: .public): \(String(describing: error), privacy: .public)")
@@ -334,7 +369,7 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
             }
             ordnerId = o
         }
-        let basis = String(data: version.contentVersion, encoding: .utf8) ?? g.inhaltVersion
+        let basis = Eintrag.atlasVersion(aus: String(data: version.contentVersion, encoding: .utf8) ?? g.inhaltVersion)
         let mime = item.contentType?.preferredMIMEType ?? g.mime ?? "application/octet-stream"
         let task = Task {
             do {

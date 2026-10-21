@@ -20,6 +20,7 @@ final class Aufzaehler: NSObject, NSFileProviderEnumerator {
     func invalidate() {}
 
     func enumerateItems(for observer: NSFileProviderEnumerationObserver, startingAt page: NSFileProviderPage) {
+        protokoll.info("Aufzählen: \(self.container.rawValue, privacy: .public)")
         guard let erw = erweiterung else { observer.finishEnumeratingWithError(NSFileProviderError(.notAuthenticated)); return }
         let start = Int(String(data: page.rawValue, encoding: .utf8) ?? "") ?? 0
         Task {
@@ -27,7 +28,16 @@ final class Aufzaehler: NSObject, NSFileProviderEnumerator {
                 // Erste Seite: Nur beim allerersten Mal auf Atlas warten; sonst sofort
                 // den bekannten Stand zeigen und im Hintergrund abgleichen.
                 if start == 0 {
-                    if erw.stand.istLeer { try await erw.abgleichen(maxAlter: 15) } else { erw.abgleichImHintergrund() }
+                    // Workspace zum ersten Mal geöffnet: seinen Inhalt jetzt holen
+                    // (Workspaces werden erst beim Öffnen geladen, nicht alle beim Start).
+                    let ws = erw.stand.eintrag(container.rawValue)?.workspaceId
+                    if let ws, erw.stand.oeffnen(ws) {
+                        try await erw.abgleichen(maxAlter: 0, erzwingen: true)
+                    } else if erw.stand.istLeer {
+                        try await erw.abgleichen(maxAlter: 15)
+                    } else {
+                        erw.abgleichImHintergrund()
+                    }
                 }
                 let liste: [Gespeichert]
                 if container == .workingSet {

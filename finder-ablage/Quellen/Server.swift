@@ -117,7 +117,10 @@ final class Server {
     }
 
     private func anfrage(_ pfad: String, methode: String = "POST", abfrage: [URLQueryItem] = []) throws -> URLRequest {
-        guard let z = ZugangSpeicher.aktuell() else { throw ServerFehler.nichtVerbunden }
+        guard let z = ZugangSpeicher.aktuell() else {
+            protokoll.error("Kein Gerätezugang auf diesem Mac (Ablage neu verbinden)")
+            throw ServerFehler.nichtVerbunden
+        }
         guard var teile = URLComponents(string: z.basis) else { throw ServerFehler.nichtVerbunden }
         teile.path = "/api/public/desktop/ablage/" + pfad
         if !abfrage.isEmpty { teile.queryItems = abfrage }
@@ -172,9 +175,9 @@ final class Server {
     }
 
     /// Alles in einer Anfrage (Server lädt parallel). nil = Server kennt /alles noch nicht.
-    func alles() async throws -> AllesAntwort? {
+    func alles(nur workspaces: [String]) async throws -> AllesAntwort? {
         var r = try anfrage("alles")
-        jsonKoerper(&r, [:])
+        jsonKoerper(&r, ["workspaceIds": workspaces])
         do {
             return try await json(r, AllesAntwort.self)
         } catch ServerFehler.nichtGefunden {
@@ -194,6 +197,7 @@ final class Server {
     func laden(_ dokumentId: String, nach ziel: URL, fortschritt: Progress) async throws -> Int64 {
         let r = try anfrage("datei", methode: "GET", abfrage: [URLQueryItem(name: "id", value: dokumentId)])
         let start = Date()
+        protokoll.notice("Laden: GET \(r.url?.path ?? "?", privacy: .public)?id=\(dokumentId, privacy: .public) (Anmeldung \(r.value(forHTTPHeaderField: "Authorization") == nil ? "fehlt" : "gesetzt", privacy: .public))")
         let (tmp, antwort): (URL, URLResponse)
         do {
             (tmp, antwort) = try await sitzung.download(for: r)

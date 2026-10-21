@@ -48,6 +48,10 @@ private struct Datei: Codable {
     var aeltesterAnker: Int
     var eintraege: [String: Gespeichert]
     var protokoll: [Protokoll]
+    /// Inhalts-Epoche (siehe Stand.epoche). Fehlt bei Ständen bis 0.3.0-beta.4.
+    var epoche: Int?
+    /// Workspaces, die im Finder schon geöffnet wurden — nur deren Inhalt wird abgeglichen.
+    var geoeffnet: [String]?
 }
 
 final class Stand {
@@ -71,8 +75,44 @@ final class Stand {
         if let daten = try? Data(contentsOf: url), let geladen = try? JSONDecoder().decode(Datei.self, from: daten) {
             d = geladen
         } else {
-            d = Datei(kennung: UUID().uuidString, anker: 1, aeltesterAnker: 1, eintraege: [:], protokoll: [])
+            d = Datei(kennung: UUID().uuidString, anker: 1, aeltesterAnker: 1, eintraege: [:], protokoll: [],
+                      epoche: Stand.epoche, geoeffnet: [])
         }
+        if d.geoeffnet == nil {
+            // Ältere Stände: alle bekannten Workspaces gelten als geöffnet.
+            d.geoeffnet = Array(Set(d.eintraege.values.filter { $0.art != .workspace }.map(\.workspaceId)))
+        }
+        if d.epoche != Stand.epoche {
+            // Neue Epoche: allen Einträgen eine neue Inhaltsversion melden, damit
+            // macOS früher (leer) geladene Inhalte verwirft und neu lädt.
+            epocheGewechselt = !d.eintraege.isEmpty
+            let naechster = d.anker + 1
+            for id in d.eintraege.keys { d.protokoll.append(Protokoll(anker: naechster, id: id, geloescht: false)) }
+            d.anker = naechster
+            d.epoche = Stand.epoche
+            speichern()
+            protokoll.notice("Stand: neue Inhalts-Epoche \(Stand.epoche), \(self.d.eintraege.count) Einträge neu gemeldet")
+        }
+    }
+
+    /// Erhöhen, wenn alle Inhalte auf den Rechnern neu geladen werden müssen
+    /// (2 = 0.3.0-beta.5: in beta.1 als leer geladene Dateien).
+    static let epoche = 2
+    /// Wurde die Epoche beim Start gewechselt? (Dann werden Dokumente geräumt.)
+    private(set) var epocheGewechselt = false
+
+    func geoeffneteWorkspaces() -> [String] {
+        sperre.lock(); defer { sperre.unlock() }
+        return d.geoeffnet ?? []
+    }
+
+    /// Workspace als geöffnet merken. true = war neu.
+    func oeffnen(_ ws: String) -> Bool {
+        sperre.lock(); defer { sperre.unlock() }
+        if d.geoeffnet?.contains(ws) == true { return false }
+        d.geoeffnet = (d.geoeffnet ?? []) + [ws]
+        speichern()
+        return true
     }
 
     private func speichern() {

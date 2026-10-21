@@ -52,8 +52,18 @@ final class Eintrag: NSObject, NSFileProviderItem {
     var itemVersion: NSFileProviderItemVersion {
         guard let g else { return NSFileProviderItemVersion(contentVersion: Data("w".utf8), metadataVersion: Data("w".utf8)) }
         let rechte = "\(g.schreiben ? 1 : 0)\(g.loeschen ? 1 : 0)"
-        return NSFileProviderItemVersion(contentVersion: Data(g.inhaltVersion.utf8),
+        return NSFileProviderItemVersion(contentVersion: Data(Eintrag.inhaltKennung(g.inhaltVersion).utf8),
                                          metadataVersion: Data((g.metaVersion + rechte).utf8))
+    }
+
+    /// Inhaltsversion für das System: Epoche + Version aus Atlas. Ändert sich
+    /// die Epoche, gilt jeder lokal geladene Inhalt als veraltet.
+    static func inhaltKennung(_ atlas: String) -> String { "e\(Stand.epoche):\(atlas)" }
+
+    /// Zurück zur Atlas-Version (für die Konfliktprüfung beim Hochladen).
+    static func atlasVersion(aus kennung: String) -> String {
+        guard kennung.hasPrefix("e"), let i = kennung.firstIndex(of: ":") else { return kennung }
+        return String(kennung[kennung.index(after: i)...])
     }
 
     var capabilities: NSFileProviderItemCapabilities {
