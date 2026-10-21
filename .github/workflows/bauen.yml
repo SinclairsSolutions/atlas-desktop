@@ -282,13 +282,15 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$APP"
           # Apples Server bricht hier manchmal ab (-1005, Error 68) — bis zu
           # dreimal versuchen, bevor der Lauf als fehlgeschlagen gilt.
+          gueltig=0
           for versuch in 1 2 3; do
-            if xcrun stapler validate "$APP"; then break; fi
+            if xcrun stapler validate "$APP"; then gueltig=1; break; fi
             # Notarisiert, aber kein Ticket angeheftet (kam vor) — nachholen.
             xcrun stapler staple "$APP" || true
-            [ "$versuch" = 3 ] && exit 1
             sleep 20
           done
+          # Hat erst das letzte Nachholen geklappt, zählt die abschließende Prüfung.
+          [ "$gueltig" = 1 ] || xcrun stapler validate "$APP"
           spctl --assess --type execute --verbose=4 "$APP"
           lipo -archs "$APP/Contents/MacOS/Sinclair Atlas"
 
