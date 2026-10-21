@@ -281,6 +281,10 @@ fn menueleiste(app: &AppHandle, an: bool) {
             &[
                 &MenuItem::with_id(app, "mb-oeffnen", t("Atlas öffnen", "Open Atlas"), true, None::<&str>)?,
                 &PredefinedMenuItem::separator(app)?,
+                &MenuItem::with_id(app, "mb-mail", t("Mail in eigenem Fenster", "Mail in Own Window"), true, None::<&str>)?,
+                &MenuItem::with_id(app, "mb-kommunikation", t("Kommunikation in eigenem Fenster", "Messages in Own Window"), true, None::<&str>)?,
+                &MenuItem::with_id(app, "mb-passwoerter", t("Passwörter in eigenem Fenster", "Passwords in Own Window"), true, None::<&str>)?,
+                &PredefinedMenuItem::separator(app)?,
                 &MenuItem::with_id(app, "mb-beleg", t("Belege in den Eingang …", "Receipts to Inbox …"), true, None::<&str>)?,
                 &MenuItem::with_id(app, "mb-foto", t("Bildschirmfoto in den Eingang", "Screenshot to Inbox"), true, None::<&str>)?,
                 &MenuItem::with_id(app, "mb-notiz", t("Schnellerfassung …", "Quick Capture …"), true, Some(KUERZEL))?,
@@ -297,6 +301,17 @@ fn menueleiste(app: &AppHandle, an: bool) {
             .show_menu_on_left_click(true)
             .on_menu_event(|app, ev| match ev.id().as_ref() {
                 "mb-oeffnen" => fenster::hauptfenster_zeigen(app),
+                // Aus der Menüleiste ist Atlas oft nicht vorne — erst aktivieren.
+                "mb-mail" | "mb-kommunikation" | "mb-passwoerter" => {
+                    #[cfg(target_os = "macos")]
+                    let _ = app.show();
+                    let id = match ev.id().as_ref() {
+                        "mb-mail" => "fenster-mail",
+                        "mb-kommunikation" => "fenster-kommunikation",
+                        _ => "fenster-passwoerter",
+                    };
+                    crate::menue::eigenes_fenster(app, id);
+                }
                 "mb-beleg" => eingang::auswaehlen(app),
                 "mb-foto" => eingang::bildschirmfoto(app),
                 "mb-notiz" => notiz_oeffnen(app),
