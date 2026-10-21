@@ -100,8 +100,8 @@ final class Stand {
     }
 
     /// Erhöhen, wenn alle Inhalte auf den Rechnern neu geladen werden müssen
-    /// (2 = 0.3.0-beta.5: in beta.1 als leer geladene Dateien).
-    static let epoche = 2
+    /// (2 = 0.3.0-beta.5: in beta.1 als leer geladene Dateien; 3 = beta.8: Dateien ohne bekannte Größe blieben leer).
+    static let epoche = 3
     /// Wurde die Epoche beim Start gewechselt? (Dann werden Dokumente geräumt.)
     private(set) var epocheGewechselt = false
 
