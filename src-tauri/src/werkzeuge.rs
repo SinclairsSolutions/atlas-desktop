@@ -21,6 +21,10 @@ const KUERZEL: &str = "CmdOrCtrl+Alt+A";
 
 /// `min`: Fenster in der Größe veränderbar, nicht kleiner als (Breite, Höhe).
 fn lokales_fenster(app: &AppHandle, label: &str, seite: &str, titel: &str, b: f64, h: f64, min: Option<(f64, f64)>) {
+    // Aus einem globalen Tastenkürzel heraus ist Atlas oft nicht das aktive
+    // Programm — ohne Aktivieren öffnete sich das Fenster unsichtbar dahinter.
+    #[cfg(target_os = "macos")]
+    let _ = app.show();
     if let Some(w) = app.get_webview_window(label) {
         let _ = w.show();
         let _ = w.set_focus();
