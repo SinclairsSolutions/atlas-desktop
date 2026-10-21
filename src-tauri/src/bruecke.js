@@ -151,7 +151,16 @@
       return "default";
     }
   }
-  var erlaubnis = gespeicherteErlaubnis();
+  // In der App entscheidet macOS über Mitteilungen (Systemeinstellungen →
+  // Mitteilungen → Sinclair Atlas); die Seite darf immer senden. Ein früher
+  // gespeichertes „denied“ (ältere App-Versionen) würde sonst alle
+  // Hintergrund-Mitteilungen still verschlucken.
+  var erlaubnis = "__PLATTFORM__" === "macos" ? "granted" : gespeicherteErlaubnis();
+  if (erlaubnis === "granted") {
+    try {
+      localStorage.setItem(SCHLUESSEL, "granted");
+    } catch (_) {}
+  }
 
   function ereignis(ziel, name) {
     var e = new Event(name);
