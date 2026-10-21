@@ -165,9 +165,14 @@ pub fn run() {
         })
         .on_window_event(|window, event| match event {
             // macOS: Schließen blendet nur aus, die App läuft weiter (Dock-Zahl,
-            // Mitteilungen). Windows: Schließen beendet.
+            // Mitteilungen). Windows: ebenso, solange das Symbol im Infobereich
+            // da ist (Einstellung „Menüleiste“, Standard an) — dort holt „Atlas
+            // öffnen“ das Fenster zurück, „Beenden“ beendet. Ohne Symbol beendet
+            // Schließen die App (sonst liefe sie unsichtbar weiter).
             WindowEvent::CloseRequested { api, .. }
-                if cfg!(target_os = "macos") && window.label() == fenster::HAUPT =>
+                if window.label() == fenster::HAUPT
+                    && (cfg!(target_os = "macos")
+                        || window.app_handle().tray_by_id(werkzeuge::TRAY_ID).is_some()) =>
             {
                 api.prevent_close();
                 let _ = window.hide();

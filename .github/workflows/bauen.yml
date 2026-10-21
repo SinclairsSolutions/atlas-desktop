@@ -2,13 +2,24 @@
 #
 #   macOS:   Universal (Apple Silicon + Intel), signiert mit „Developer ID
 #            Application“, von Apple notarisiert, als DMG. Mit Updater-Paket.
-#   Windows: NSIS-Installer. Wird mitgebaut, aber NICHT veröffentlicht — nur als
-#            Artefakt. Signatur ist vorbereitet, aber aus (Variable WINDOWS_SIGNIEREN).
+#   Windows: NSIS-Installer (x64, Benutzerinstallation). Zwei Schalter (Repo-Variablen,
+#            Settings → Secrets and variables → Actions → Variables):
+#              WINDOWS_AUSLIEFERN = true  → bei Tags kommen Installer, Updater-Signatur
+#                                            und der Eintrag „windows-x86_64“ in
+#                                            latest.json in DENSELBEN Release-Entwurf
+#                                            wie macOS (Job „windows-release“).
+#                                  sonst   → wie bisher nur Artefakt, kein Updater-Paket,
+#                                            nichts im Release.
+#              WINDOWS_SIGNIEREN  = true  → Authenticode über Azure Trusted Signing.
+#            Beide unabhängig: unsigniert ausliefern geht (SmartScreen warnt), siehe TODO.md §4.
 #
 # Start:
 #   - Tag „v1.2.3“ pushen → Entwurf eines GitHub-Release mit DMG, Updater-Paket
 #     und latest.json (erst nach „Publish“ sehen ihn die installierten Apps).
 #   - Von Hand („Run workflow“ bzw. `gh workflow run bauen.yml`) → nur Artefakte.
+#     Mit `-f windows_probe=true` baut Windows zusätzlich das Updater-Paket und
+#     der Job „windows-release“ führt die latest.json-Zusammenführung als
+#     Trockenlauf gegen den neuesten veröffentlichten Release aus (lädt nichts hoch).
 #
 # Alle Zugangsdaten kommen aus GitHub-Secrets (Namen wie im Atlas-Repo, siehe
 # TODO.md). Im Repo steht nichts davon.
@@ -22,6 +33,11 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      windows_probe:
+        description: "Windows: Updater-Paket bauen und latest.json-Zusammenführung trocken prüfen"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -291,10 +307,17 @@ jobs:
         if: always()
         run: security delete-keychain "$RUNNER_TEMP/signieren.keychain-db" 2>/dev/null || true
 
+
   windows:
-    name: Windows (Installer, noch nicht ausgeliefert)
+    name: Windows (Installer${{ (startsWith(github.ref, 'refs/tags/') && vars.WINDOWS_AUSLIEFERN == 'true') && ', ausgeliefert' || ', nicht ausgeliefert' }})
     runs-on: windows-latest
     timeout-minutes: 60
+    env:
+      # Ausliefern nur bei Tags UND gesetzter Repo-Variable. Probe (von Hand):
+      # Updater-Paket bauen, aber nichts veröffentlichen.
+      AUSLIEFERN: ${{ startsWith(github.ref, 'refs/tags/') && vars.WINDOWS_AUSLIEFERN == 'true' }}
+      UPDATER: ${{ (startsWith(github.ref, 'refs/tags/') && vars.WINDOWS_AUSLIEFERN == 'true') || inputs.windows_probe == true }}
+      WINDOWS_SIGNIEREN: ${{ vars.WINDOWS_SIGNIEREN }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -313,13 +336,40 @@ jobs:
       - name: Abhängigkeiten
         run: bun install --frozen-lockfile
 
-      - name: Tests
+      # Mit -D warnings: die Windows-eigenen Pfade (Ablage im Explorer,
+      # Anmeldeinformationsverwaltung, Taskleiste, Infobereich) werden nur hier
+      # übersetzt — eine Warnung (z. B. ungenutzter Code) fällt sonst niemandem auf.
+      - name: Tests (Windows-Code ohne Warnungen)
+        env:
+          RUSTFLAGS: -D warnings
         run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Secrets vorhanden?
+        shell: bash
+        env:
+          UPD_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          AZ_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZ_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZ_TENANT: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          fehlt=0
+          if [ "$UPDATER" = "true" ] && [ -z "$UPD_KEY" ]; then
+            echo "::error::Secret TAURI_SIGNING_PRIVATE_KEY fehlt (siehe TODO.md)"; fehlt=1
+          fi
+          if [ "${WINDOWS_SIGNIEREN:-}" = "true" ]; then
+            for n in AZ_ID AZ_SECRET AZ_TENANT; do
+              if [ -z "${!n}" ]; then echo "::error::Azure-Secret für $n fehlt (siehe TODO.md §4)"; fehlt=1; fi
+            done
+            if grep -q 'ERSETZEN_' src-tauri/tauri.windows-signatur.conf.json; then
+              echo "::error::src-tauri/tauri.windows-signatur.conf.json enthält noch ERSETZEN_… (siehe TODO.md §4)"; fehlt=1
+            fi
+          fi
+          exit $fehlt
 
       # --- Signatur: vorbereitet, aber aus. Einschalten über die Repo-Variable
       # WINDOWS_SIGNIEREN = true, sobald Azure Trusted Signing eingerichtet ist
-      # (siehe TODO.md, „Windows“). Bis dahin ist der Installer unsigniert und
-      # SmartScreen warnt beim Start.
+      # (siehe TODO.md §4). Bis dahin ist der Installer unsigniert und
+      # SmartScreen warnt beim ersten Start des Installers.
       - name: Signierwerkzeug installieren
         if: vars.WINDOWS_SIGNIEREN == 'true'
         run: cargo install trusted-signing-cli --locked
@@ -327,23 +377,106 @@ jobs:
       - name: Installer bauen
         shell: bash
         env:
-          WINDOWS_SIGNIEREN: ${{ vars.WINDOWS_SIGNIEREN }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          # Kein Updater-Schlüssel: der Windows-Build erzeugt keine Updater-Pakete
-          # (tauri.windows.ungeliefert.conf.json). Beim Ausliefern wieder ergänzen.
+          # Updater-Schlüssel nur, wenn ein Updater-Paket entstehen soll
+          # (Tauri signiert damit das -setup.exe → -setup.exe.sig).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ ((startsWith(github.ref, 'refs/tags/') && vars.WINDOWS_AUSLIEFERN == 'true') || inputs.windows_probe == true) && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ ((startsWith(github.ref, 'refs/tags/') && vars.WINDOWS_AUSLIEFERN == 'true') || inputs.windows_probe == true) && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         run: |
           set -euo pipefail
-          ZUSATZ=(--config src-tauri/tauri.windows.ungeliefert.conf.json)
+          ZUSATZ=()
+          if [ "$UPDATER" != "true" ]; then
+            # Kein Updater-Paket (und kein Schlüssel nötig) — wie vor dem Ausliefern.
+            ZUSATZ+=(--config src-tauri/tauri.windows.ungeliefert.conf.json)
+          fi
           if [ "${WINDOWS_SIGNIEREN:-}" = "true" ]; then
             ZUSATZ+=(--config src-tauri/tauri.windows-signatur.conf.json)
           fi
           bunx tauri build --bundles nsis "${ZUSATZ[@]}"
 
+      - name: Installer prüfen
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          if (-not $exe) { Write-Error "Kein -setup.exe gebaut"; exit 1 }
+          "Installer: $($exe.Name) ($([math]::Round($exe.Length / 1MB, 1)) MB)"
+          $sig = Get-AuthenticodeSignature $exe.FullName
+          "Authenticode: $($sig.Status) $($sig.SignerCertificate.Subject)"
+          $signiert = $sig.Status -eq 'Valid'
+          if ($env:WINDOWS_SIGNIEREN -eq 'true' -and -not $signiert) { Write-Error "Signatur eingeschaltet, aber Installer nicht gültig signiert"; exit 1 }
+          if ($env:UPDATER -eq 'true' -and -not (Test-Path "$($exe.FullName).sig")) { Write-Error "Updater-Signatur $($exe.Name).sig fehlt"; exit 1 }
+          # Kennzeichen für die Atlas-Downloadseite (SmartScreen-Hinweis bei unsigniert).
+          @{ signiert = $signiert; datei = $exe.Name } | ConvertTo-Json -Compress | Set-Content -Encoding utf8NoBOM src-tauri/target/release/bundle/nsis/windows.json
+          Get-Content src-tauri/target/release/bundle/nsis/windows.json
+
       - name: Installer als Artefakt
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: Sinclair-Atlas-Windows-ungeliefert
-          path: src-tauri/target/release/bundle/nsis/*.exe
+          name: ${{ env.UPDATER == 'true' && 'Sinclair-Atlas-Windows' || 'Sinclair-Atlas-Windows-ungeliefert' }}
+          path: |
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/release/bundle/nsis/*-setup.exe.sig
+            src-tauri/target/release/bundle/nsis/windows.json
           if-no-files-found: error
+
+  # Windows in den Release-Entwurf, den der macOS-Job (tauri-action) angelegt
+  # hat. Läuft erst nach BEIDEN Jobs: so gibt es den Entwurf schon, und nur ein
+  # Job schreibt latest.json (kein Wettlauf zweier tauri-action-Läufe).
+  windows-release:
+    name: Windows in den Release-Entwurf${{ !startsWith(github.ref, 'refs/tags/') && ' (Trockenlauf)' || '' }}
+    needs: [macos, windows]
+    if: (startsWith(github.ref, 'refs/tags/') && vars.WINDOWS_AUSLIEFERN == 'true') || inputs.windows_probe == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Sinclair-Atlas-Windows
+          path: windows
+
+      - name: Hochladen und latest.json ergänzen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IST_TAG: ${{ startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          set -euo pipefail
+          V=$(jq -r .version package.json)
+          EXE=$(ls windows/*-setup.exe | head -1)
+          test -f "$EXE.sig" || { echo "::error::$EXE.sig fehlt"; exit 1; }
+          # GitHub ersetzt Leerzeichen in Asset-Namen durch Punkte — gleich so
+          # benennen, damit die Adresse in latest.json stimmt.
+          NAME="Sinclair.Atlas_${V}_x64-setup.exe"
+          mkdir -p hoch
+          cp "$EXE" "hoch/$NAME"
+          cp "$EXE.sig" "hoch/$NAME.sig"
+          cp windows/windows.json hoch/windows.json
+          SIGDATEI="hoch/$NAME.sig"
+
+          if [ "$IST_TAG" = "true" ]; then
+            TAG="$GITHUB_REF_NAME"
+            ENTWURF=$(gh release view "$TAG" --json isDraft -q .isDraft)
+            # Nie einen schon veröffentlichten Release verändern.
+            [ "$ENTWURF" = "true" ] || { echo "::error::Release $TAG ist kein Entwurf — nichts geändert"; exit 1; }
+            gh release download "$TAG" -p latest.json -O latest.json
+          else
+            # Trockenlauf: gegen den neuesten veröffentlichten Release, nichts hochladen.
+            TAG=$(gh release view --json tagName -q .tagName)
+            gh release download "$TAG" -p latest.json -O latest.json
+            V=$(jq -r .version latest.json)
+            NAME="Sinclair.Atlas_${V}_x64-setup.exe"
+          fi
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${NAME}"
+          bash scripts/windows-in-latest-json.sh latest.json hoch/latest.json "$URL" "$SIGDATEI" "$V"
+
+          if [ "$IST_TAG" = "true" ]; then
+            gh release upload "$TAG" "hoch/$NAME" "$SIGDATEI" hoch/windows.json --clobber
+            gh release upload "$TAG" hoch/latest.json --clobber
+            gh release view "$TAG" --json assets -q '.assets[].name'
+          else
+            echo "Trockenlauf gegen $TAG — nichts hochgeladen."
+            cat hoch/latest.json | jq '.platforms | map_values(.url)'
+          fi

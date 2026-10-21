@@ -14,7 +14,7 @@ use crate::{
 
 pub const EINSTELLUNGEN: &str = "einstellungen";
 pub const NOTIZ: &str = "notiz";
-const TRAY_ID: &str = "atlas-menueleiste";
+pub const TRAY_ID: &str = "atlas-menueleiste";
 const TRAY_PW: &str = "atlas-passwoerter";
 /// Schnellerfassung: ⌥⌘A (Windows: Strg+Alt+A).
 const KUERZEL: &str = "CmdOrCtrl+Alt+A";
@@ -288,10 +288,22 @@ fn menueleiste(app: &AppHandle, an: bool) {
                 &MenuItem::with_id(app, "mb-einstellungen", t("Einstellungen …", "Settings …"), true, None::<&str>)?,
             ],
         )?;
+        // Windows: Schließen blendet das Hauptfenster nur aus, solange dieses
+        // Symbol da ist (lib.rs) — beendet wird hier.
+        #[cfg(not(target_os = "macos"))]
+        {
+            menue.append(&PredefinedMenuItem::separator(app)?)?;
+            menue.append(&MenuItem::with_id(app, "mb-beenden", t("Sinclair Atlas beenden", "Quit Sinclair Atlas"), true, None::<&str>)?)?;
+        }
+        // macOS: Template-Bild (passt sich hell/dunkel an). Windows kennt das
+        // nicht — schwarz auf transparent wäre auf der dunklen Taskleiste unsichtbar.
+        #[cfg(target_os = "macos")]
         let bild = tauri::image::Image::from_bytes(include_bytes!("../icons/menueleiste.png"))?;
+        #[cfg(not(target_os = "macos"))]
+        let bild = tauri::image::Image::from_bytes(include_bytes!("../icons/windows-infobereich.png"))?;
         TrayIconBuilder::with_id(TRAY_ID)
             .icon(bild)
-            .icon_as_template(true)
+            .icon_as_template(cfg!(target_os = "macos"))
             .tooltip("Sinclair Atlas")
             .menu(&menue)
             .show_menu_on_left_click(true)
@@ -301,6 +313,7 @@ fn menueleiste(app: &AppHandle, an: bool) {
                 "mb-foto" => eingang::bildschirmfoto(app),
                 "mb-notiz" => notiz_oeffnen(app),
                 "mb-einstellungen" => einstellungen_oeffnen(app),
+                "mb-beenden" => app.exit(0),
                 _ => {}
             })
             .build(app)?;
@@ -336,10 +349,13 @@ fn passwort_symbol(app: &AppHandle, an: bool) {
                 &MenuItem::with_id(app, "pw-einstellungen", t("Einstellungen …", "Settings …"), true, None::<&str>)?,
             ],
         )?;
+        #[cfg(target_os = "macos")]
         let bild = tauri::image::Image::from_bytes(include_bytes!("../icons/passwoerter-menueleiste.png"))?;
+        #[cfg(not(target_os = "macos"))]
+        let bild = tauri::image::Image::from_bytes(include_bytes!("../icons/windows-passwoerter-infobereich.png"))?;
         TrayIconBuilder::with_id(TRAY_PW)
             .icon(bild)
-            .icon_as_template(true)
+            .icon_as_template(cfg!(target_os = "macos"))
             .tooltip(t("Atlas Passwörter", "Atlas Passwords"))
             .menu(&menue)
             .show_menu_on_left_click(false)

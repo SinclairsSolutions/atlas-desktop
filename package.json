@@ -8,7 +8,7 @@
     "build": "tauri build",
     "build:mac": "tauri build --target universal-apple-darwin",
     "build:lokal": "tauri build --config src-tauri/tauri.lokal.conf.json",
-    "symbole": "tauri icon src-tauri/icons/quelle-1024.png -o src-tauri/icons",
+    "symbole": "tauri icon src-tauri/icons/quelle-1024.png -o src-tauri/icons && python3 scripts/windows-symbole-erzeugen.py",
     "tauri": "tauri"
   },
   "devDependencies": {

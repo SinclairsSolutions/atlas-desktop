@@ -2,15 +2,22 @@
 //! Die Wahl steht in den Einstellungen (einstellungen.rs) und gilt ab dem Start.
 //! macOS: Dock-Symbol zur Laufzeit (NSApplication), Windows: Fenstersymbol.
 //! Das Symbol im Finder bzw. Startmenü bleibt das mitgelieferte (schwarz).
+//!
+//! Windows bekommt eigene, randlose Symbole (scripts/windows-symbole-erzeugen.py):
+//! das Mac-Symbol hat Rand und Schatten nach Apple-Vorgabe und wirkte in der
+//! Taskleiste klein und gerahmt.
 
 use tauri::AppHandle;
 
+#[cfg(target_os = "macos")]
 const SCHWARZ: &[u8] = include_bytes!("../icons/dock-schwarz.png");
 // Weiß als .icns (alle Größen, für kleine Größen kräftiger gezeichnet).
 #[cfg(target_os = "macos")]
 const WEISS: &[u8] = include_bytes!("../icons/dock-weiss.icns");
 #[cfg(not(target_os = "macos"))]
-const WEISS: &[u8] = include_bytes!("../icons/dock-weiss.png");
+const SCHWARZ: &[u8] = include_bytes!("../icons/windows-schwarz.png");
+#[cfg(not(target_os = "macos"))]
+const WEISS: &[u8] = include_bytes!("../icons/windows-weiss.png");
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Variante {
@@ -45,7 +52,10 @@ pub fn setzen(app: &AppHandle, v: Variante) {
     #[cfg(not(target_os = "macos"))]
     {
         use tauri::Manager;
-        if let Ok(bild) = tauri::image::Image::from_bytes(bytes) {
+        // Schwarz: das Symbol aus der Programmdatei (icon.ico, alle Größen) —
+        // ein einzelnes zur Laufzeit gesetztes Bild skaliert Windows schlechter.
+        let standard = if v == Variante::Schwarz { app.default_window_icon().cloned() } else { None };
+        if let Some(bild) = standard.or_else(|| tauri::image::Image::from_bytes(bytes).ok()) {
             for w in app.webview_windows().values() {
                 let _ = w.set_icon(bild.clone());
             }
