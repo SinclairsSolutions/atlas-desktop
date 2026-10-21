@@ -2,6 +2,22 @@
 //! Die Wahl steht in den Einstellungen (einstellungen.rs) und gilt ab dem Start.
 //! macOS: Dock-Symbol zur Laufzeit (NSApplication), Windows: Fenstersymbol.
 //! Das Symbol im Finder bzw. Startmenü bleibt das mitgelieferte (schwarz).
+//!
+//! macOS 26 (Tahoe): Das mitgelieferte Symbol kommt aus Assets.car
+//! (CFBundleIconName „AppIcon“, gebaut aus icons/AppIcon.icon in der CI). Nur
+//! so zeichnet das System es selbst — groß wie die übrigen Apps, scharf und in
+//! jeder Darstellung (hell, dunkel, getönt, klar). Ein .icns allein steckt
+//! macOS 26 verkleinert auf eine eigene Kachel.
+//!
+//! Grenze beim weißen Symbol: macOS kennt (anders als iOS) keinen Wechsel auf
+//! ein alternatives App-Symbol. Es bleibt nur `setApplicationIconImage`, und
+//! ein so gesetztes Bild ist ein fertiges Bitmap — das System passt es nicht
+//! mehr an Dunkel/Getönt/Klar an, und nach dem Beenden zeigt das Dock wieder
+//! das mitgelieferte (schwarze). Damit es wenigstens genauso scharf und groß
+//! ist wie das Standard-Symbol, nehmen wir die vom System vorgerenderte Fassung
+//! von „AppIconWeiss“ aus Assets.car (1024 px, Tahoe-Raster samt Maske und
+//! Schatten). Nur wenn die fehlt (lokaler Build ohne Assets.car), greift das
+//! alte dock-weiss.icns.
 
 use tauri::AppHandle;
 
@@ -35,8 +51,10 @@ pub fn setzen(app: &AppHandle, v: Variante) {
                 unsafe { ns.setApplicationIconImage(None) };
                 return;
             }
-            let daten = NSData::with_bytes(bytes);
-            if let Some(bild) = NSImage::initWithData(NSImage::alloc(), &daten) {
+            // Vom System gerenderte Fassung aus Assets.car (siehe oben).
+            let bild = NSImage::imageNamed(objc2_foundation::ns_string!("AppIconWeiss"))
+                .or_else(|| NSImage::initWithData(NSImage::alloc(), &NSData::with_bytes(bytes)));
+            if let Some(bild) = bild {
                 unsafe { ns.setApplicationIconImage(Some(&bild)) };
             }
             let _ = app2;

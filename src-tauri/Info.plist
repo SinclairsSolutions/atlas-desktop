@@ -36,6 +36,11 @@
       </array>
     </dict>
   </array>
+  <!-- App-Symbol für macOS 26: Assets.car (aus icons/AppIcon.icon, gebaut in
+       der CI). CFBundleIconFile (icon.icns, von Tauri gesetzt) bleibt als
+       Rückfall, etwa für lokale Builds ohne Assets.car. -->
+  <key>CFBundleIconName</key>
+  <string>AppIcon</string>
   <key>NSHumanReadableCopyright</key>
   <string>© Sinclairs Solutions</string>
 </dict>

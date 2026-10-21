@@ -31,8 +31,56 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # App-Symbol für macOS 26 (Tahoe): icons/AppIcon.icon (+ AppIconWeiss.icon,
+  # erzeugt mit scripts/app-symbol-erzeugen.py) mit actool zu Assets.car
+  # kompilieren. Eigener Lauf auf macOS 26 mit Xcode 26: Icon-Composer-Dateien
+  # (.icon) braucht Xcode 26, und das Rendern der Liquid-Glass-Symbole ist auf
+  # macOS 26 am verlässlichsten. Die fertige Assets.car läuft auch auf macOS 12–15
+  # (actool legt dafür gerenderte Bitmaps mit hinein); icon.icns bleibt Rückfall.
+  app-symbol:
+    name: App-Symbol (Assets.car)
+    runs-on: macos-26
+    timeout-minutes: 15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Assets.car kompilieren
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          AUS="$RUNNER_TEMP/symbol"
+          mkdir -p "$AUS"
+          xcrun actool src-tauri/icons/AppIcon.icon src-tauri/icons/AppIconWeiss.icon \
+            --compile "$AUS" \
+            --output-format human-readable-text --notices --warnings --errors \
+            --output-partial-info-plist "$AUS/partial.plist" \
+            --app-icon AppIcon --include-all-app-icons \
+            --enable-on-demand-resources NO --development-region de \
+            --target-device mac --platform macosx --minimum-deployment-target 12.0
+          ls -la "$AUS"
+          test -s "$AUS/Assets.car" || { echo "::error::actool hat keine Assets.car erzeugt"; exit 1; }
+          xcrun --sdk macosx assetutil --info "$AUS/Assets.car" > "$AUS/assets.json"
+          jq -r '.[1:][] | [.AssetType, .Name, (.Appearance // "-"), (.PixelWidth // "-" | tostring)] | @tsv' "$AUS/assets.json"
+          for n in AppIcon AppIconWeiss; do
+            jq -e --arg n "$n" '[.[1:][] | select(.Name == $n and .AssetType == "IconImageStack")] | length > 0' "$AUS/assets.json" > /dev/null \
+              || { echo "::error::$n fehlt als IconImageStack in Assets.car"; exit 1; }
+            jq -e --arg n "$n" '[.[1:][] | select(.Name == $n and .AssetType == "Icon Image" and .PixelWidth == 1024)] | length > 0' "$AUS/assets.json" > /dev/null \
+              || { echo "::error::$n ohne gerenderte 1024er-Fassung (Rückfall/Laufzeit) in Assets.car"; exit 1; }
+          done
+          mkdir -p symbol-artefakt && cp "$AUS/Assets.car" symbol-artefakt/
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: app-symbol
+          path: symbol-artefakt/Assets.car
+          if-no-files-found: error
+          retention-days: 7
+
   macos:
     name: macOS (Universal, signiert, notarisiert)
+    needs: app-symbol
     runs-on: macos-15
     timeout-minutes: 60
     steps:
@@ -53,6 +101,12 @@ jobs:
 
       - name: Abhängigkeiten
         run: bun install --frozen-lockfile
+
+      - name: App-Symbol (Assets.car) holen
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: app-symbol
+          path: build/symbol
 
       - name: Tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
@@ -190,8 +244,12 @@ jobs:
           codesign --verify --strict --verbose=2 "$APPEX"
           codesign -d --entitlements - "$APPEX"
 
-          # Zusatz-Konfiguration für tauri build: .appex nach Contents/PlugIns kopieren.
-          jq -n --arg k "PlugIns/$NAME" --arg v "$APPEX" '{bundle: {macOS: {files: {($k): $v}}}}' \
+          # Zusatz-Konfiguration für tauri build: .appex nach Contents/PlugIns und
+          # das App-Symbol (Assets.car, Job app-symbol) nach Contents/Resources.
+          CAR="$GITHUB_WORKSPACE/build/symbol/Assets.car"
+          test -s "$CAR" || { echo "::error::Assets.car aus dem Job app-symbol fehlt"; exit 1; }
+          jq -n --arg k "PlugIns/$NAME" --arg v "$APPEX" --arg car "$CAR" \
+            '{bundle: {macOS: {files: {($k): $v, "Resources/Assets.car": $car}}}}' \
             > "$RUNNER_TEMP/tauri.safari.conf.json"
           cat "$RUNNER_TEMP/tauri.safari.conf.json"
           echo "ERWEITERUNG_NAME=$NAME" >> "$GITHUB_ENV"
@@ -234,6 +292,19 @@ jobs:
           spctl --assess --type execute --verbose=4 "$APP"
           lipo -archs "$APP/Contents/MacOS/Sinclair Atlas"
 
+          # App-Symbol für macOS 26: Assets.car mit AppIcon, CFBundleIconName gesetzt,
+          # icon.icns als Rückfall weiterhin da.
+          PL="$APP/Contents/Info.plist"
+          [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$PL")" = AppIcon ] \
+            || { echo "::error::CFBundleIconName fehlt oder ist nicht AppIcon"; exit 1; }
+          ICNS=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$PL")
+          test -f "$APP/Contents/Resources/$ICNS" || test -f "$APP/Contents/Resources/$ICNS.icns" \
+            || { echo "::error::Rückfall-Symbol $ICNS fehlt"; exit 1; }
+          test -s "$APP/Contents/Resources/Assets.car" || { echo "::error::Assets.car fehlt in der App"; exit 1; }
+          xcrun --sdk macosx assetutil --info "$APP/Contents/Resources/Assets.car" \
+            | jq -e '[.[1:][] | select(.Name == "AppIcon" and .AssetType == "IconImageStack")] | length > 0' > /dev/null \
+            || { echo "::error::Assets.car der App ohne AppIcon"; exit 1; }
+
           # Safari-Erweiterung: eingebaut, eigene Signatur mit Sandbox, gleiches Team.
           APPEX="$APP/Contents/PlugIns/$ERWEITERUNG_NAME"
           test -d "$APPEX" || { echo "::error::$APPEX fehlt in der App"; exit 1; }
@@ -249,8 +320,11 @@ jobs:
           TGZ="$APP.tar.gz"
           if [ -f "$TGZ" ]; then
             # grep ohne -q: liest alles, sonst bricht tar mit SIGPIPE ab (pipefail).
-            tar -tzf "$TGZ" | grep -F "Contents/PlugIns/$ERWEITERUNG_NAME/Contents/Info.plist" > /dev/null \
+            tar -tzf "$TGZ" > "$RUNNER_TEMP/tgz-liste.txt"
+            grep -F "Contents/PlugIns/$ERWEITERUNG_NAME/Contents/Info.plist" "$RUNNER_TEMP/tgz-liste.txt" > /dev/null \
               || { echo "::error::Updater-Paket ohne Safari-Erweiterung"; exit 1; }
+            grep -F "Contents/Resources/Assets.car" "$RUNNER_TEMP/tgz-liste.txt" > /dev/null \
+              || { echo "::error::Updater-Paket ohne Assets.car"; exit 1; }
           else
             echo "::warning::Kein Updater-Paket gefunden ($TGZ)"
           fi
