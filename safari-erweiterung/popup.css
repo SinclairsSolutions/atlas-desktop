@@ -1,4 +1,4 @@
-:root { color-scheme: light dark; --gruen: #527e66; --blatt: #87d46c; --wald: #04170d; --text: #1b1d22; --leise: #5b6660; }
+:root { color-scheme: light dark; accent-color: #527e66; --gruen: #527e66; --blatt: #87d46c; --wald: #04170d; --text: #1b1d22; --leise: #5b6660; }
 * { box-sizing: border-box; }
 /* Feste Breite: lange Einträge dürfen das Fenster nicht aufblähen. */
 html, body { width: 380px; max-width: 380px; overflow-x: hidden; }
@@ -63,3 +63,6 @@ input:focus, select:focus { outline: 2px solid color-mix(in oklab, var(--gruen) 
 .suchzeile > button { flex: none; white-space: nowrap; }
 .formular { display: grid; gap: 8px; padding: 10px; }
 .feld { display: grid; gap: 3px; font-size: 11px; color: var(--leise); }
+/* Keine Browser-Blautöne: Fokus und Suchfeld im Atlas-Grün. */
+button:focus-visible { outline: 2px solid color-mix(in oklab, var(--gruen) 55%, transparent); outline-offset: 1px; }
+input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }

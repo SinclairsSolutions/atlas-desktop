@@ -3,7 +3,7 @@
   "name": "Atlas Passwort-Safe",
   "short_name": "Atlas",
   "description": "Zugänge aus dem Atlas-Passwort-Safe sicher im Browser ausfüllen — Zero-Knowledge, entschlüsselt nur auf diesem Gerät.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "minimum_chrome_version": "116",
   "action": {
     "default_title": "Atlas Passwort-Safe",

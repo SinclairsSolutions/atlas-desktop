@@ -1,6 +1,6 @@
 [package]
 name = "atlas-desktop"
-version = "0.2.9"
+version = "0.2.10"
 description = "Sinclair Atlas als Desktop-App"
 authors = ["Sinclairs Solutions"]
 edition = "2021"
@@ -42,7 +42,7 @@ log = "0.4"
 objc2 = { version = "0.6", features = ["exception"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSImage", "NSResponder", "NSWindow", "NSButton", "NSControl", "NSView"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData", "NSString", "NSError", "NSBundle", "NSObject", "NSDistributedNotificationCenter", "NSNotification"] }
-objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "block2", "bitflags", "UNUserNotificationCenter", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationSound", "UNNotificationTrigger"] }
+objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "block2", "bitflags", "UNUserNotificationCenter", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationSound", "UNNotificationTrigger", "UNNotificationSettings"] }
 objc2-local-authentication = { version = "0.3", default-features = false, features = ["std", "LAContext", "LAError", "block2"] }
 objc2-safari-services = { version = "0.3", default-features = false, features = ["std", "block2", "SFSafariApplication", "SFSafariExtensionManager", "SFSafariExtensionState"] }
 block2 = "0.6"

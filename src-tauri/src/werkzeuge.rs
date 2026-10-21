@@ -192,13 +192,14 @@ pub async fn ordner_waehlen(app: AppHandle) -> Option<String> {
 }
 
 #[tauri::command]
-pub fn mitteilung_testen(app: AppHandle) -> Result<(), String> {
+pub async fn mitteilung_testen(app: AppHandle) -> Result<String, String> {
     crate::mitteilung::erlaubnis_anfragen(&app);
-    crate::mitteilung::zeigen(
+    crate::mitteilung::probe(
         &app,
         "Sinclair Atlas",
         t("So sehen Mitteilungen von Atlas aus.", "This is how Atlas notifications look."),
     )
+    .await
 }
 
 #[tauri::command]

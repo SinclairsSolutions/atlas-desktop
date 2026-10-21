@@ -215,7 +215,7 @@
   };
   $("testen").onclick = function () {
     inv("mitteilung_testen")
-      .then(function () { melden(tt("Probe-Mitteilung gesendet", "Test notification sent")); })
+      .then(function (r) { melden(r || tt("Probe-Mitteilung gesendet", "Test notification sent")); })
       .catch(function (e) { melden(String(e), true); });
   };
   $("updates").onclick = function () {
