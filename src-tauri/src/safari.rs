@@ -51,24 +51,34 @@ fn zustand_anfordern() -> Option<tokio::sync::oneshot::Receiver<Option<bool>>> {
     use block2::RcBlock;
     use objc2_foundation::{NSError, NSString};
     use objc2_safari_services::{SFSafariExtensionManager, SFSafariExtensionState};
+    use std::panic::AssertUnwindSafe;
     use std::sync::Mutex;
 
     let (tx, rx) = tokio::sync::oneshot::channel::<Option<bool>>();
     let tx = Mutex::new(Some(tx));
     let id = NSString::from_str(ERWEITERUNG_ID);
     let block = RcBlock::new(move |zustand: *mut SFSafariExtensionState, fehler: *mut NSError| {
-        let wert = if !fehler.is_null() || zustand.is_null() {
-            None
-        } else {
-            // SAFETY: Safari übergibt ein gültiges Objekt, solange der Block läuft.
-            Some(unsafe { (*zustand).isEnabled() })
-        };
-        if let Some(s) = tx.lock().unwrap().take() {
-            let _ = s.send(wert);
-        }
+        // Ein Panic darf nicht über die Objective-C-Grenze laufen (Abbruch).
+        let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            let wert = if !fehler.is_null() || zustand.is_null() {
+                None
+            } else {
+                // SAFETY: Safari übergibt ein gültiges Objekt, solange der Block läuft.
+                objc2::exception::catch(AssertUnwindSafe(|| unsafe { (*zustand).isEnabled() })).ok()
+            };
+            if let Some(s) = tx.lock().ok().and_then(|mut g| g.take()) {
+                let _ = s.send(wert);
+            }
+        }));
     });
-    unsafe {
+    // Wirft SafariServices eine Objective-C-Ausnahme, würde sie sonst durch
+    // Rust laufen und die App beenden (Absturz beim Öffnen der Einstellungen).
+    let ergebnis = objc2::exception::catch(AssertUnwindSafe(|| unsafe {
         SFSafariExtensionManager::getStateOfSafariExtensionWithIdentifier_completionHandler(&id, &block);
+    }));
+    if let Err(e) = ergebnis {
+        log::warn!("Safari-Zustand nicht abfragbar: {e:?}");
+        return None;
     }
     Some(rx)
 }
@@ -114,18 +124,24 @@ fn einstellungen_anfordern() -> tokio::sync::oneshot::Receiver<bool> {
     use block2::RcBlock;
     use objc2_foundation::{NSError, NSString};
     use objc2_safari_services::SFSafariApplication;
+    use std::panic::AssertUnwindSafe;
     use std::sync::Mutex;
 
     let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
     let tx = Mutex::new(Some(tx));
     let id = NSString::from_str(ERWEITERUNG_ID);
     let block = RcBlock::new(move |fehler: *mut NSError| {
-        if let Some(s) = tx.lock().unwrap().take() {
-            let _ = s.send(fehler.is_null());
-        }
+        let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            if let Some(s) = tx.lock().ok().and_then(|mut g| g.take()) {
+                let _ = s.send(fehler.is_null());
+            }
+        }));
     });
-    unsafe {
+    let ergebnis = objc2::exception::catch(AssertUnwindSafe(|| unsafe {
         SFSafariApplication::showPreferencesForExtensionWithIdentifier_completionHandler(&id, Some(&block));
+    }));
+    if let Err(e) = ergebnis {
+        log::warn!("Safari-Einstellungen nicht zu öffnen: {e:?}");
     }
     rx
 }
