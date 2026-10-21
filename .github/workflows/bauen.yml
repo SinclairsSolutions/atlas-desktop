@@ -303,9 +303,13 @@ jobs:
           test -f "$APP/Contents/Resources/$ICNS" || test -f "$APP/Contents/Resources/$ICNS.icns" \
             || { echo "::error::Rückfall-Symbol $ICNS fehlt"; exit 1; }
           test -s "$APP/Contents/Resources/Assets.car" || { echo "::error::Assets.car fehlt in der App"; exit 1; }
-          xcrun --sdk macosx assetutil --info "$APP/Contents/Resources/Assets.car" \
-            | jq -e '[.[1:][] | select(.Name == "AppIcon" and .AssetType == "IconImageStack")] | length > 0' > /dev/null \
+          # assetutil auf macOS 15 kann die Tahoe-Ebenen (IconImageStack) nicht lesen
+          # — die prüft schon der Job app-symbol; hier zählen die gerenderten Fassungen.
+          xcrun --sdk macosx assetutil --info "$APP/Contents/Resources/Assets.car" 2>/dev/null \
+            | jq -e '[.[1:][] | select(.Name == "AppIcon" and .AssetType == "Icon Image")] | length > 0' > /dev/null \
             || { echo "::error::Assets.car der App ohne AppIcon"; exit 1; }
+          cmp "$APP/Contents/Resources/Assets.car" build/symbol/Assets.car \
+            || { echo "::error::Assets.car in der App ist nicht die aus dem Job app-symbol"; exit 1; }
 
           # Safari-Erweiterung: eingebaut, eigene Signatur mit Sandbox, gleiches Team.
           APPEX="$APP/Contents/PlugIns/$ERWEITERUNG_NAME"
