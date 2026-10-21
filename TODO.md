@@ -369,3 +369,8 @@ Abmelden in Atlas.
 - [ ] Profil → Apps → Gerät trennen → beim nächsten Abgleich verschwindet alles.
 - [ ] In Atlas abmelden → Ordner weg; wieder anmelden → verbindet sich von selbst.
 - [ ] FileVault aus → Hinweis im Reiter.
+- [ ] Phase 2: Datei im Finder bearbeiten und speichern → in Atlas Version 2, unter
+      „Frühere Versionen“ die alte; gleichzeitig in Atlas ersetzen → Konfliktkopie
+      „… (Konflikt von <Name>, <Datum>)“. Umbenennen/Verschieben im Finder → in Atlas;
+      Löschen → Atlas-Papierkorb (ohne Verwalten-Recht: Finder stellt wieder her);
+      Verschieben in einen anderen Workspace → wird zurückgesetzt.

@@ -33,7 +33,13 @@ struct ServerListe: Codable {
     let eintraege: [ServerEintrag]
 }
 
+struct VersionErgebnis: Codable {
+    let eintrag: ServerEintrag
+    let konflikt: ServerEintrag?
+}
+
 private struct WorkspacesAntwort: Codable { let workspaces: [WorkspaceInfo] }
+private struct OkAntwort: Codable { let ok: Bool? }
 private struct EintragAntwort: Codable { let eintrag: ServerEintrag }
 private struct FehlerAntwort: Codable {
     let error: String?
@@ -187,6 +193,47 @@ final class Server {
             throw ServerFehler.server(200, "Unerwartete Antwort")
         }
         return e.eintrag
+    }
+
+    /// Bearbeitete Datei als neue Version (Phase 2). `basis` = inhaltVersion,
+    /// auf der die Änderung beruht; passt sie nicht mehr, legt Atlas eine
+    /// Konfliktkopie an und lässt das Dokument unverändert.
+    func neueVersion(dokumentId: String, basis: String, mime: String, datei: URL) async throws -> VersionErgebnis {
+        var r = try anfrage("hochladen")
+        r.setValue(dokumentId, forHTTPHeaderField: "x-atlas-dokument")
+        r.setValue(basis, forHTTPHeaderField: "x-atlas-basis")
+        r.setValue(mime, forHTTPHeaderField: "Content-Type")
+        let (daten, antwort): (Data, URLResponse)
+        do {
+            (daten, antwort) = try await sitzung.upload(for: r, fromFile: datei)
+        } catch {
+            throw ServerFehler.netz(error)
+        }
+        try pruefen(antwort, daten)
+        guard let e = try? JSONDecoder().decode(VersionErgebnis.self, from: daten) else {
+            throw ServerFehler.server(200, "Unerwartete Antwort")
+        }
+        return e
+    }
+
+    /// Umbenennen/Verschieben. `ordnerId`: nil = nicht verschieben,
+    /// .some(nil) = oberste Ebene des Workspace.
+    func aendern(id: String, name: String?, ordnerId: String??) async throws -> ServerEintrag {
+        var r = try anfrage("aendern")
+        var koerper: [String: Any?] = ["id": id]
+        if let name { koerper["name"] = name }
+        if let ordnerId {
+            if let o = ordnerId { koerper["parentId"] = o } else { koerper["parentId"] = NSNull() }
+        }
+        jsonKoerper(&r, koerper)
+        return try await json(r, EintragAntwort.self).eintrag
+    }
+
+    /// Löschen = Atlas-Papierkorb.
+    func loeschen(id: String) async throws {
+        var r = try anfrage("loeschen")
+        jsonKoerper(&r, ["id": id])
+        _ = try await json(r, OkAntwort.self)
     }
 
     func ordnerAnlegen(workspaceId: String, ordnerId: String?, name: String) async throws -> ServerEintrag {

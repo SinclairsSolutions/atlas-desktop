@@ -176,6 +176,32 @@ final class Stand {
         speichern()
     }
 
+    /// Eintrag setzen und dem Finder melden (z. B. Konfliktkopie, die der
+    /// Server neu angelegt hat).
+    func setzenUndMelden(_ e: Gespeichert) {
+        sperre.lock(); defer { sperre.unlock() }
+        d.eintraege[e.id] = e
+        d.anker += 1
+        d.protokoll.append(Protokoll(anker: d.anker, id: e.id, geloescht: false))
+        speichern()
+    }
+
+    /// Eintrag samt allem darunter entfernen (der Finder hat sie selbst gelöscht).
+    func entfernenMitInhalt(_ id: String) {
+        sperre.lock(); defer { sperre.unlock() }
+        var weg: Set<String> = [id]
+        var gewachsen = true
+        while gewachsen {
+            gewachsen = false
+            for (k, e) in d.eintraege where !weg.contains(k) && weg.contains(e.parent) {
+                weg.insert(k)
+                gewachsen = true
+            }
+        }
+        for k in weg { d.eintraege.removeValue(forKey: k) }
+        speichern()
+    }
+
     func entfernen(_ id: String) {
         sperre.lock(); defer { sperre.unlock() }
         d.eintraege.removeValue(forKey: id)

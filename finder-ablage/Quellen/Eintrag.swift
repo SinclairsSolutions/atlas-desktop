@@ -64,9 +64,13 @@ final class Eintrag: NSObject, NSFileProviderItem {
             if g.schreiben { c.insert(.allowsAddingSubItems) }
         case .ordner:
             c.insert(.allowsContentEnumerating)
-            if g.schreiben { c.insert(.allowsAddingSubItems) }
+            if g.schreiben { c.formUnion([.allowsAddingSubItems, .allowsRenaming, .allowsReparenting]) }
+            if g.loeschen { c.insert(.allowsDeleting) }
         case .dokument:
-            // Phase 1: Dateien aus Atlas sind auf dem Mac schreibgeschützt.
+            // Bearbeiten speichert eine neue Version in Atlas (die alte bleibt erhalten).
+            if g.schreiben { c.formUnion([.allowsWriting, .allowsRenaming, .allowsReparenting]) }
+            // Löschen = Atlas-Papierkorb, nur mit Verwalten-Recht (wie in der Ablage).
+            if g.loeschen { c.insert(.allowsDeleting) }
             if #unavailable(macOS 13) { c.insert(.allowsEvicting) }
         case .lokal:
             c.formUnion([.allowsWriting, .allowsRenaming, .allowsReparenting, .allowsDeleting])

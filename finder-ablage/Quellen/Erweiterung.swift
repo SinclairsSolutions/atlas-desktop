@@ -6,8 +6,11 @@
 // funktionieren über das System). Neue Dateien und Ordner im Finder gehen
 // nach Atlas; Änderungen in Atlas kommen über den Abgleich (Arbeitsmenge).
 //
-// Phase 1: Dateien aus Atlas sind auf dem Mac schreibgeschützt; Umbenennen,
-// Verschieben und Löschen im Finder werden abgelehnt (das Original bleibt).
+// Phase 2: Bearbeiten speichert eine neue Version (die alte bleibt in Atlas);
+// hat sich das Dokument in Atlas inzwischen geändert, bleibt es unverändert und
+// die Fassung vom Mac kommt als Konfliktkopie daneben. Umbenennen und
+// Verschieben (innerhalb eines Workspace) gehen durch; Löschen legt in den
+// Atlas-Papierkorb (nur mit Verwalten-Recht, sonst stellt der Finder es wieder her).
 
 import FileProvider
 import Foundation
@@ -231,17 +234,32 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
         return fortschritt
     }
 
-    // MARK: Ändern / Löschen
+    // MARK: Ändern / Löschen (Phase 2)
+
+    /// Atlas-Ordner-ID für einen neuen Elternteil im selben Workspace.
+    /// nil = nicht zulässig (anderer Workspace, oberste Ebene „Atlas“).
+    private func ordnerZiel(_ parent: NSFileProviderItemIdentifier, workspace: String) -> String?? {
+        guard let z = ziel(parent), z.workspace == workspace else { return nil }
+        return .some(z.ordner)
+    }
+
+    private func zuruecksetzen(_ g: Gespeichert, inhalt: Bool,
+                               _ completionHandler: @escaping (NSFileProviderItem?, NSFileProviderItemFields, Bool, Error?) -> Void)
+    {
+        // Der Finder übernimmt den Serverstand wieder (Name, Ort; bei Inhalt: neu laden).
+        completionHandler(Eintrag(g), [], inhalt, nil)
+    }
 
     func modifyItem(_ item: NSFileProviderItem, baseVersion version: NSFileProviderItemVersion,
                     changedFields: NSFileProviderItemFields, contents newContents: URL?,
                     options: NSFileProviderModifyItemOptions = [], request: NSFileProviderRequest,
                     completionHandler: @escaping (NSFileProviderItem?, NSFileProviderItemFields, Bool, Error?) -> Void) -> Progress
     {
+        let fortschritt = Progress(totalUnitCount: 100)
         let id = item.itemIdentifier.rawValue
         guard let g = stand.eintrag(id) else {
             completionHandler(nil, [], false, NSError.fileProviderErrorForNonExistentItem(withIdentifier: item.itemIdentifier))
-            return Progress()
+            return fortschritt
         }
         if g.art == .lokal {
             var neu = g
@@ -250,37 +268,102 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
             if changedFields.contains(.contents) { neu.inhaltVersion = UUID().uuidString }
             stand.setzen(neu)
             completionHandler(Eintrag(neu), [], false, nil)
-            return Progress()
+            return fortschritt
         }
-        // Nur Finder-eigene Merkmale (Tags, Zuletzt benutzt, Favoriten) — die bleiben lokal.
-        let erlaubt: NSFileProviderItemFields = [.lastUsedDate, .tagData, .favoriteRank, .fileSystemFlags, .extendedAttributes,
-                                                 .creationDate, .contentModificationDate]
-        if changedFields.isSubset(of: erlaubt) {
+        let umbenennen = changedFields.contains(.filename) && item.filename != g.name
+        let verschieben = changedFields.contains(.parentItemIdentifier) && item.parentItemIdentifier.rawValue != g.parent
+        let inhalt = changedFields.contains(.contents) && g.art == .dokument
+        // Nur Finder-eigene Merkmale (Tags, Zuletzt benutzt …) — bleiben lokal.
+        if !umbenennen && !verschieben && !inhalt {
             completionHandler(Eintrag(g), [], false, nil)
-            return Progress()
+            return fortschritt
         }
-        // Phase 1: Inhalt, Name und Ort ändern geht nur in Atlas. Original bleibt, die
-        // lokale Änderung wird zurückgesetzt (Inhalt neu laden).
-        completionHandler(Eintrag(g), [], changedFields.contains(.contents), nil)
-        return Progress()
+        // Workspaces selbst lassen sich nicht ändern; ohne Schreibrecht nichts.
+        if g.art == .workspace || !g.schreiben {
+            zuruecksetzen(g, inhalt: inhalt, completionHandler)
+            return fortschritt
+        }
+        var ordnerId: String?? = nil
+        if verschieben {
+            guard let o = ordnerZiel(item.parentItemIdentifier, workspace: g.workspaceId) else {
+                // Zwischen Workspaces verschieben geht nur in Atlas.
+                zuruecksetzen(g, inhalt: inhalt, completionHandler)
+                return fortschritt
+            }
+            ordnerId = o
+        }
+        let basis = String(data: version.contentVersion, encoding: .utf8) ?? g.inhaltVersion
+        let mime = item.contentType?.preferredMIMEType ?? g.mime ?? "application/octet-stream"
+        let task = Task {
+            do {
+                var aktuell = g
+                if umbenennen || verschieben {
+                    let e = try await server.aendern(id: g.atlasId, name: umbenennen ? item.filename : nil, ordnerId: ordnerId)
+                    aktuell = Self.alsGespeichert(e, workspaceId: g.workspaceId, schreiben: g.schreiben, loeschen: g.loeschen)
+                }
+                var nachladen = false
+                if inhalt, let datei = newContents {
+                    let r = try await server.neueVersion(dokumentId: g.atlasId, basis: basis, mime: mime, datei: datei)
+                    aktuell = Self.alsGespeichert(r.eintrag, workspaceId: g.workspaceId, schreiben: g.schreiben, loeschen: g.loeschen)
+                    if let k = r.konflikt {
+                        // Atlas hatte inzwischen eine neuere Fassung: die bleibt, die Änderung
+                        // vom Mac liegt als Konfliktkopie daneben.
+                        let kopie = Self.alsGespeichert(k, workspaceId: g.workspaceId, schreiben: g.schreiben, loeschen: g.loeschen)
+                        stand.setzenUndMelden(kopie)
+                        nachladen = true
+                        manager?.signalEnumerator(for: .workingSet) { _ in }
+                    }
+                }
+                stand.setzen(aktuell)
+                fortschritt.completedUnitCount = 100
+                completionHandler(Eintrag(aktuell), [], nachladen, nil)
+            } catch ServerFehler.keinRecht, ServerFehler.nichtGefunden, ServerFehler.abgelehnt {
+                // Abgelehnt: Serverstand gilt (bei Inhalt neu laden).
+                zuruecksetzen(stand.eintrag(id) ?? g, inhalt: inhalt, completionHandler)
+            } catch {
+                completionHandler(nil, [], false, fehler(error))
+            }
+        }
+        fortschritt.cancellationHandler = { task.cancel() }
+        return fortschritt
     }
 
     func deleteItem(identifier: NSFileProviderItemIdentifier, baseVersion version: NSFileProviderItemVersion,
                     options: NSFileProviderDeleteItemOptions = [], request: NSFileProviderRequest,
                     completionHandler: @escaping (Error?) -> Void) -> Progress
     {
+        let fortschritt = Progress(totalUnitCount: 1)
         guard let g = stand.eintrag(identifier.rawValue) else {
             completionHandler(nil)
-            return Progress()
+            return fortschritt
         }
         if g.art == .lokal {
             stand.entfernen(g.id)
             completionHandler(nil)
-            return Progress()
+            return fortschritt
         }
-        // Phase 1: Löschen nur in Atlas (dort Papierkorb). Der Finder stellt den Eintrag wieder her.
-        completionHandler(NSFileProviderError(.deletionRejected))
-        return Progress()
+        // Nie endgültig: Löschen im Finder legt den Eintrag in den Atlas-Papierkorb.
+        // Ohne Verwalten-Recht (oder bei Workspaces) stellt der Finder ihn wieder her.
+        if g.art == .workspace || !g.loeschen {
+            completionHandler(NSFileProviderError(.deletionRejected))
+            return fortschritt
+        }
+        let task = Task {
+            do {
+                try await server.loeschen(id: g.atlasId)
+                stand.entfernenMitInhalt(g.id)
+                completionHandler(nil)
+            } catch ServerFehler.nichtGefunden {
+                stand.entfernenMitInhalt(g.id)
+                completionHandler(nil)
+            } catch ServerFehler.keinRecht, ServerFehler.abgelehnt {
+                completionHandler(NSFileProviderError(.deletionRejected))
+            } catch {
+                completionHandler(fehler(error))
+            }
+        }
+        fortschritt.cancellationHandler = { task.cancel() }
+        return fortschritt
     }
 
     // MARK: Aufzählen
