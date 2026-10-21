@@ -222,7 +222,13 @@ jobs:
           set -euo pipefail
           APP=$(ls -d src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app | head -1)
           codesign --verify --deep --strict --verbose=2 "$APP"
-          xcrun stapler validate "$APP"
+          # Apples Server bricht hier manchmal ab (-1005, Error 68) — bis zu
+          # dreimal versuchen, bevor der Lauf als fehlgeschlagen gilt.
+          for versuch in 1 2 3; do
+            if xcrun stapler validate "$APP"; then break; fi
+            [ "$versuch" = 3 ] && exit 1
+            sleep 20
+          done
           spctl --assess --type execute --verbose=4 "$APP"
           lipo -archs "$APP/Contents/MacOS/Sinclair Atlas"
 
