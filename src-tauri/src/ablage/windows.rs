@@ -671,12 +671,22 @@ fn abgleichen(lz: &Laufzeit) -> Result<(), String> {
     let mut soll: Soll = HashMap::new();
     let mut vollstaendig: HashSet<String> = HashSet::new();
     let mut rechte = HashMap::new();
+    // Alles in einer Anfrage (Server lädt parallel); ältere Server: je Workspace.
+    let alles = block_on(api.alles()).ok().flatten();
     for w in &workspaces {
         let wid = format!("w:{}", w.id);
         soll.insert(wid.clone(), (None, w.name.clone(), None, w.id.clone()));
         rechte.insert(w.id.clone(), Recht { schreiben: w.schreiben, loeschen: w.loeschen });
-        match block_on(api.liste(&w.id)) {
-            Ok(l) => {
+        let ergebnis = match alles.as_ref().and_then(|a| a.listen.get(&w.id)) {
+            Some(api::ListeOderFehler::Liste(_)) | Some(api::ListeOderFehler::Fehler { .. }) => None,
+            None => Some(block_on(api.liste(&w.id))),
+        };
+        let liste = match (alles.as_ref().and_then(|a| a.listen.get(&w.id)), ergebnis) {
+            (Some(api::ListeOderFehler::Liste(l)), _) => Some(Ok(l)),
+            (Some(api::ListeOderFehler::Fehler { fehler }), _) if fehler == "kein_recht" => Some(Err(true)),
+            (Some(api::ListeOderFehler::Fehler { .. }), _) => Some(Err(false)),
+            (None, Some(Ok(l))) => {
+                // Eigene Liste aus dem Einzelabruf: in den Soll-Stand übernehmen.
                 vollstaendig.insert(w.id.clone());
                 rechte.insert(w.id.clone(), Recht { schreiben: l.schreiben, loeschen: l.loeschen });
                 for e in l.eintraege {
@@ -684,11 +694,29 @@ fn abgleichen(lz: &Laufzeit) -> Result<(), String> {
                     let eltern = e.parent_id.as_ref().map(|p| format!("o:{p}")).unwrap_or_else(|| wid.clone());
                     soll.insert(id, (Some(eltern), e.name.clone(), Some(e), w.id.clone()));
                 }
+                None
             }
-            Err(Fehler::KeinRecht(_)) => {
+            (None, Some(Err(Fehler::KeinRecht(_)))) => Some(Err(true)),
+            (None, Some(Err(e))) => {
+                log::warn!("Ablage: Liste {}: {e}", w.name);
+                Some(Err(false))
+            }
+            (None, None) => None,
+        };
+        match liste {
+            Some(Ok(l)) => {
+                vollstaendig.insert(w.id.clone());
+                rechte.insert(w.id.clone(), Recht { schreiben: l.schreiben, loeschen: l.loeschen });
+                for e in &l.eintraege {
+                    let id = format!("{}:{}", if e.art == "ordner" { "o" } else { "d" }, e.id);
+                    let eltern = e.parent_id.as_ref().map(|p| format!("o:{p}")).unwrap_or_else(|| wid.clone());
+                    soll.insert(id, (Some(eltern), e.name.clone(), Some(e.clone()), w.id.clone()));
+                }
+            }
+            Some(Err(true)) => {
                 vollstaendig.insert(w.id.clone());
             }
-            Err(e) => log::warn!("Ablage: Liste {}: {e}", w.name),
+            _ => {}
         }
     }
     *lz.rechte.lock().unwrap() = rechte.clone();
@@ -720,9 +748,10 @@ fn abgleichen(lz: &Laufzeit) -> Result<(), String> {
                 if let Some(e) = eintrag {
                     let stand = kennung.as_ref().and_then(|k| k.inhalt.clone());
                     if !ist_ordner && in_sync && stand.as_deref() != Some(e.inhalt_version.as_str()) {
-                        let groesse = e.groesse.or_else(|| block_on(api.groesse(&e.id)).ok().flatten()).unwrap_or(0);
+                        let groesse = e.groesse.filter(|g| *g > 0).or_else(|| block_on(api.groesse(&e.id)).ok().flatten()).unwrap_or(0);
                         let k = Kennung { id: id.clone(), inhalt: Some(e.inhalt_version.clone()) };
-                        let _ = aktualisieren(&ziel, &k, &metadaten(Some(e), false, groesse, !recht.schreiben), true);
+                        let nur_lesen = !recht.schreiben || e.nur_lesen == Some(true);
+                        let _ = aktualisieren(&ziel, &k, &metadaten(Some(e), false, groesse, nur_lesen), true);
                     }
                 }
             }
@@ -739,10 +768,11 @@ fn abgleichen(lz: &Laufzeit) -> Result<(), String> {
                     inhalt: eintrag.as_ref().filter(|_| !ist_ordner).map(|e| e.inhalt_version.clone()),
                 };
                 let groesse = match eintrag {
-                    Some(e) if !ist_ordner => e.groesse.or_else(|| block_on(api.groesse(&e.id)).ok().flatten()).unwrap_or(0),
+                    Some(e) if !ist_ordner => e.groesse.filter(|g| *g > 0).or_else(|| block_on(api.groesse(&e.id)).ok().flatten()).unwrap_or(0),
                     _ => 0,
                 };
-                let meta = metadaten(eintrag.as_ref(), ist_ordner, groesse, !ist_ordner && !recht.schreiben);
+                let nur_lesen = !recht.schreiben || eintrag.as_ref().and_then(|e| e.nur_lesen) == Some(true);
+                let meta = metadaten(eintrag.as_ref(), ist_ordner, groesse, !ist_ordner && nur_lesen);
                 if let Err(e) = platzhalter_anlegen(ordner, name, &k, meta, ist_ordner) {
                     log::warn!("Ablage: {e}");
                 }

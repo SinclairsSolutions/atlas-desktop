@@ -3,6 +3,10 @@
 
 import FileProvider
 import Foundation
+import os
+
+/// Protokoll der Erweiterung (Konsole.app → Prozess „AtlasAblage“), ohne Inhalte.
+let protokoll = Logger(subsystem: "com.sinclairs-solutions.atlas.ablage", category: "ablage")
 
 struct WorkspaceInfo: Codable {
     let id: String
@@ -23,6 +27,8 @@ struct ServerEintrag: Codable {
     let metaVersion: String
     let erstelltAm: String
     let geaendertAm: String
+    /// Nur lesbar (z. B. signierte Fassung).
+    let nurLesen: Bool?
 }
 
 struct ServerListe: Codable {
@@ -39,6 +45,26 @@ struct VersionErgebnis: Codable {
 }
 
 private struct WorkspacesAntwort: Codable { let workspaces: [WorkspaceInfo] }
+
+/// Antwort von /alles: Workspaces und je Workspace die Liste oder ein Fehler.
+struct AllesAntwort: Decodable {
+    let workspaces: [WorkspaceInfo]
+    let listen: [String: ListeOderFehler]
+}
+
+enum ListeOderFehler: Decodable {
+    case liste(ServerListe)
+    case fehler(String)
+
+    init(from decoder: Decoder) throws {
+        if let l = try? ServerListe(from: decoder) {
+            self = .liste(l)
+            return
+        }
+        struct F: Decodable { let fehler: String }
+        self = .fehler((try? F(from: decoder).fehler) ?? "abfrage")
+    }
+}
 private struct OkAntwort: Codable { let ok: Bool? }
 private struct EintragAntwort: Codable { let eintrag: ServerEintrag }
 private struct FehlerAntwort: Codable {
@@ -71,7 +97,7 @@ enum ServerFehler: Error {
             return NSFileProviderError(.serverUnreachable)
         case .server(_, let m):
             return NSError(domain: NSCocoaErrorDomain, code: NSFileReadUnknownError,
-                           userInfo: [NSLocalizedDescriptionKey: m])
+                           userInfo: [NSLocalizedDescriptionKey: m, NSLocalizedFailureReasonErrorKey: m])
         }
     }
 }
@@ -145,29 +171,58 @@ final class Server {
         return try await json(r, WorkspacesAntwort.self).workspaces
     }
 
+    /// Alles in einer Anfrage (Server lädt parallel). nil = Server kennt /alles noch nicht.
+    func alles() async throws -> AllesAntwort? {
+        var r = try anfrage("alles")
+        jsonKoerper(&r, [:])
+        do {
+            return try await json(r, AllesAntwort.self)
+        } catch ServerFehler.nichtGefunden {
+            return nil
+        }
+    }
+
     func liste(_ workspaceId: String) async throws -> ServerListe {
         var r = try anfrage("liste")
         jsonKoerper(&r, ["workspaceId": workspaceId])
         return try await json(r, ServerListe.self)
     }
 
-    /// Lädt die Datei nach `ziel` (überschreibt).
-    func laden(_ dokumentId: String, nach ziel: URL, fortschritt: Progress) async throws {
+    /// Lädt die Datei nach `ziel` (überschreibt). Prüft, dass genau so viele
+    /// Bytes ankamen, wie der Server angekündigt hat — eine leere oder
+    /// abgeschnittene Datei wird nie als Inhalt übergeben.
+    func laden(_ dokumentId: String, nach ziel: URL, fortschritt: Progress) async throws -> Int64 {
         let r = try anfrage("datei", methode: "GET", abfrage: [URLQueryItem(name: "id", value: dokumentId)])
+        let start = Date()
         let (tmp, antwort): (URL, URLResponse)
         do {
             (tmp, antwort) = try await sitzung.download(for: r)
         } catch {
+            protokoll.error("Laden \(dokumentId, privacy: .public): Netz \(error.localizedDescription, privacy: .public)")
             throw ServerFehler.netz(error)
         }
-        if let h = antwort as? HTTPURLResponse, !(200..<300).contains(h.statusCode) {
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        guard let h = antwort as? HTTPURLResponse else { throw ServerFehler.server(0, "Keine Antwort") }
+        if !(200..<300).contains(h.statusCode) {
             let daten = try? Data(contentsOf: tmp)
-            try? FileManager.default.removeItem(at: tmp)
+            let text = daten.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            protokoll.error("Laden \(dokumentId, privacy: .public): HTTP \(h.statusCode) \(text, privacy: .public)")
             try pruefen(antwort, daten)
+        }
+        let groesse = ((try? FileManager.default.attributesOfItem(atPath: tmp.path)[.size]) as? NSNumber)?.int64Value ?? 0
+        let erwartet = Int64(h.value(forHTTPHeaderField: "x-atlas-groesse") ?? "")
+            ?? Int64(h.value(forHTTPHeaderField: "Content-Length") ?? "")
+        protokoll.info("Laden \(dokumentId, privacy: .public): \(groesse) Bytes (erwartet \(erwartet ?? -1)) in \(Date().timeIntervalSince(start)) s")
+        if groesse == 0 {
+            throw ServerFehler.server(200, "Atlas hat eine leere Datei geliefert. Bitte später erneut öffnen.")
+        }
+        if let erwartet, erwartet != groesse {
+            throw ServerFehler.server(200, "Download unvollständig (\(groesse) von \(erwartet) Bytes).")
         }
         try? FileManager.default.removeItem(at: ziel)
         try FileManager.default.moveItem(at: tmp, to: ziel)
         fortschritt.completedUnitCount = fortschritt.totalUnitCount
+        return groesse
     }
 
     /// Neue Datei hochladen.

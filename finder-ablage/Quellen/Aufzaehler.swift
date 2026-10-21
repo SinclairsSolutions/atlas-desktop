@@ -24,8 +24,11 @@ final class Aufzaehler: NSObject, NSFileProviderEnumerator {
         let start = Int(String(data: page.rawValue, encoding: .utf8) ?? "") ?? 0
         Task {
             do {
-                // Erste Seite: frischen Stand holen (gedrosselt).
-                if start == 0 { try await erw.abgleichen(maxAlter: 15) }
+                // Erste Seite: Nur beim allerersten Mal auf Atlas warten; sonst sofort
+                // den bekannten Stand zeigen und im Hintergrund abgleichen.
+                if start == 0 {
+                    if erw.stand.istLeer { try await erw.abgleichen(maxAlter: 15) } else { erw.abgleichImHintergrund() }
+                }
                 let liste: [Gespeichert]
                 if container == .workingSet {
                     liste = erw.stand.alle()

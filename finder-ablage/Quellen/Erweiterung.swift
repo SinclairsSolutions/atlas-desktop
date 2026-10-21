@@ -66,32 +66,75 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
     }
 
     private func abgleichJetzt() async throws {
-        let workspaces = try await server.workspaces()
+        let start = Date()
         var neu: [String: Gespeichert] = [:]
         var vollstaendig = Set<String>()
-        for ws in workspaces {
+        func workspaceEintrag(_ ws: WorkspaceInfo) {
             let wid = "w:" + ws.id
             neu[wid] = Gespeichert(id: wid, parent: Stand.wurzel, name: ws.name, art: .workspace,
                                    workspaceId: ws.id, groesse: nil, mime: nil, version: 1,
                                    inhaltVersion: "w", metaVersion: ws.name, erstellt: nil, geaendert: nil,
                                    schreiben: ws.schreiben, loeschen: ws.loeschen)
-            do {
-                let l = try await server.liste(ws.id)
-                for e in l.eintraege {
-                    let g = Self.alsGespeichert(e, workspaceId: ws.id, schreiben: l.schreiben, loeschen: l.loeschen)
-                    neu[g.id] = g
+        }
+        func uebernehmen(_ l: ServerListe, _ ws: WorkspaceInfo) {
+            for e in l.eintraege {
+                let g = Self.alsGespeichert(e, workspaceId: ws.id, schreiben: l.schreiben, loeschen: l.loeschen)
+                neu[g.id] = g
+            }
+            vollstaendig.insert(ws.id)
+        }
+        func altBehalten(_ ws: WorkspaceInfo) {
+            for e in stand.alle() where e.workspaceId == ws.id && e.art != .workspace { neu[e.id] = e }
+        }
+
+        if let alles = try await server.alles() {
+            // Eine Anfrage; der Server lädt die Workspaces parallel.
+            for ws in alles.workspaces {
+                workspaceEintrag(ws)
+                switch alles.listen[ws.id] {
+                case .liste(let l)?: uebernehmen(l, ws)
+                case .fehler("kein_recht")?: vollstaendig.insert(ws.id)
+                default: altBehalten(ws)
                 }
-                vollstaendig.insert(ws.id)
-            } catch ServerFehler.keinRecht {
-                // Recht inzwischen entzogen: Inhalt gilt als vollständig leer.
-                vollstaendig.insert(ws.id)
-            } catch ServerFehler.netz {
-                // Workspace diesmal nicht erreichbar: alten Inhalt behalten.
-                for e in stand.alle() where e.workspaceId == ws.id && e.art != .workspace { neu[e.id] = e }
+            }
+        } else {
+            // Älterer Server ohne /alles: Listen parallel abrufen.
+            let workspaces = try await server.workspaces()
+            for ws in workspaces { workspaceEintrag(ws) }
+            let ergebnisse = await withTaskGroup(of: (String, Result<ServerListe, Error>).self) { gruppe in
+                for ws in workspaces {
+                    gruppe.addTask { [server] in
+                        do { return (ws.id, .success(try await server.liste(ws.id))) } catch { return (ws.id, .failure(error)) }
+                    }
+                }
+                var r: [String: Result<ServerListe, Error>] = [:]
+                for await (id, e) in gruppe { r[id] = e }
+                return r
+            }
+            for ws in workspaces {
+                switch ergebnisse[ws.id] {
+                case .success(let l)?: uebernehmen(l, ws)
+                case .failure(ServerFehler.keinRecht)?: vollstaendig.insert(ws.id)
+                case .failure(ServerFehler.widerrufen)?: throw ServerFehler.widerrufen
+                default: altBehalten(ws)
+                }
             }
         }
-        // Workspace-Namen eindeutig halten (zwei Kunden mit gleichem Namen).
-        stand.uebernehmen(neu, vollstaendig: vollstaendig, workspacesVollstaendig: true)
+        let geaendert = stand.uebernehmen(neu, vollstaendig: vollstaendig, workspacesVollstaendig: true)
+        protokoll.info("Abgleich: \(neu.count) Einträge, geändert \(geaendert) in \(Date().timeIntervalSince(start)) s")
+    }
+
+    /// Abgleich im Hintergrund; meldet Änderungen danach dem Finder.
+    func abgleichImHintergrund() {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.abgleichen(maxAlter: 15)
+                self.manager?.signalEnumerator(for: .workingSet) { _ in }
+            } catch {
+                protokoll.error("Abgleich: \(String(describing: error), privacy: .public)")
+            }
+        }
     }
 
     static func alsGespeichert(_ e: ServerEintrag, workspaceId: String, schreiben: Bool, loeschen: Bool) -> Gespeichert {
@@ -105,7 +148,7 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
                            groesse: e.groesse, mime: e.mime, version: e.version,
                            inhaltVersion: e.inhaltVersion, metaVersion: e.metaVersion,
                            erstellt: datum(e.erstelltAm), geaendert: datum(e.geaendertAm),
-                           schreiben: schreiben, loeschen: loeschen)
+                           schreiben: schreiben, loeschen: loeschen, nurLesen: e.nurLesen)
     }
 
     func fehler(_ e: Error) -> Error {
@@ -140,17 +183,16 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension {
             do {
                 let tmpOrdner = try manager?.temporaryDirectoryURL() ?? FileManager.default.temporaryDirectory
                 let ziel = tmpOrdner.appendingPathComponent(UUID().uuidString)
-                try await server.laden(g.atlasId, nach: ziel, fortschritt: fortschritt)
-                // Groesse aus der Datei übernehmen (ältere Dokumente haben keine).
+                let groesse = try await server.laden(g.atlasId, nach: ziel, fortschritt: fortschritt)
+                // Größe aus der Datei übernehmen (ältere Dokumente haben keine).
                 var aktuell = stand.eintrag(g.id) ?? g
-                if let s = (try? FileManager.default.attributesOfItem(atPath: ziel.path)[.size]) as? NSNumber,
-                   aktuell.groesse != s.int64Value
-                {
-                    aktuell.groesse = s.int64Value
+                if aktuell.groesse != groesse {
+                    aktuell.groesse = groesse
                     stand.setzen(aktuell)
                 }
                 completionHandler(ziel, Eintrag(aktuell), nil)
             } catch {
+                protokoll.error("Öffnen \(g.name, privacy: .public): \(String(describing: error), privacy: .public)")
                 completionHandler(nil, nil, fehler(error))
             }
         }

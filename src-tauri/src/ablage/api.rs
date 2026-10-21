@@ -30,6 +30,9 @@ pub struct ServerEintrag {
     pub meta_version: String,
     pub erstellt_am: String,
     pub geaendert_am: String,
+    /// Nur lesbar (signierte Fassung).
+    #[serde(default)]
+    pub nur_lesen: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -77,6 +80,20 @@ impl std::fmt::Display for Fehler {
 struct FehlerAntwort {
     error: Option<String>,
     message: Option<String>,
+}
+
+/// Antwort von /alles: je Workspace die Liste oder `{ fehler }`.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum ListeOderFehler {
+    Liste(Liste),
+    Fehler { fehler: String },
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Alles {
+    pub workspaces: Vec<WorkspaceInfo>,
+    pub listen: std::collections::HashMap<String, ListeOderFehler>,
 }
 
 #[derive(Deserialize)]
@@ -143,6 +160,15 @@ impl Api {
 
     pub async fn workspaces(&self) -> Result<Vec<WorkspaceInfo>, Fehler> {
         Ok(self.post_json::<WorkspacesAntwort>("workspaces", serde_json::json!({})).await?.workspaces)
+    }
+
+    /// Alles in einer Anfrage; `None`, wenn der Server /alles noch nicht kennt.
+    pub async fn alles(&self) -> Result<Option<Alles>, Fehler> {
+        match self.post_json::<Alles>("alles", serde_json::json!({})).await {
+            Ok(a) => Ok(Some(a)),
+            Err(Fehler::NichtGefunden) => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 
     pub async fn liste(&self, workspace_id: &str) -> Result<Liste, Fehler> {

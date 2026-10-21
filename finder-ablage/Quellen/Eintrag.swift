@@ -41,7 +41,8 @@ final class Eintrag: NSObject, NSFileProviderItem {
     }
 
     var documentSize: NSNumber? {
-        guard let s = g?.groesse, !istOrdner else { return nil }
+        // 0 = unbekannt (ältere Dokumente): nil, sonst hält der Finder die Datei für leer.
+        guard let s = g?.groesse, s > 0, !istOrdner else { return nil }
         return NSNumber(value: s)
     }
 
@@ -68,7 +69,11 @@ final class Eintrag: NSObject, NSFileProviderItem {
             if g.loeschen { c.insert(.allowsDeleting) }
         case .dokument:
             // Bearbeiten speichert eine neue Version in Atlas (die alte bleibt erhalten).
-            if g.schreiben { c.formUnion([.allowsWriting, .allowsRenaming, .allowsReparenting]) }
+            if g.schreiben {
+                c.formUnion([.allowsRenaming, .allowsReparenting])
+                // Signierte Fassungen sind versiegelt: nur lesen.
+                if g.nurLesen != true { c.insert(.allowsWriting) }
+            }
             // Löschen = Atlas-Papierkorb, nur mit Verwalten-Recht (wie in der Ablage).
             if g.loeschen { c.insert(.allowsDeleting) }
             if #unavailable(macOS 13) { c.insert(.allowsEvicting) }

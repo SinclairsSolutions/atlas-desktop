@@ -29,6 +29,8 @@ struct Gespeichert: Codable, Equatable {
     var geaendert: Date?
     var schreiben: Bool
     var loeschen: Bool
+    /// Nur lesbar (signierte Fassung). Optional, damit ältere Stände lesbar bleiben.
+    var nurLesen: Bool? = nil
 
     /// UUID in Atlas (ohne Präfix).
     var atlasId: String { String(id.dropFirst(2)) }
@@ -54,6 +56,11 @@ final class Stand {
     private let sperre = NSLock()
     private var d: Datei
     private(set) var letzterAbgleich: Date = .distantPast
+
+    var istLeer: Bool {
+        sperre.lock(); defer { sperre.unlock() }
+        return d.eintraege.isEmpty
+    }
 
     init(domain: String) {
         let basis = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
