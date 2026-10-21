@@ -52,8 +52,12 @@ final class Eintrag: NSObject, NSFileProviderItem {
     var itemVersion: NSFileProviderItemVersion {
         guard let g else { return NSFileProviderItemVersion(contentVersion: Data("w".utf8), metadataVersion: Data("w".utf8)) }
         let rechte = "\(g.schreiben ? 1 : 0)\(g.loeschen ? 1 : 0)\(g.intern == true ? 1 : 0)\(g.sichtbarkeit ?? "")"
+        // Größe gehört in die Metadaten-Version: Ist sie beim Auflisten unbekannt und
+        // erst nach dem Laden bekannt, übernimmt macOS Größe und Inhalt nur, wenn
+        // sich die Version ändert — sonst bleibt die Datei bei 0 Byte stehen.
+        let groesse = g.groesse.map { "|\($0)" } ?? "|?"
         return NSFileProviderItemVersion(contentVersion: Data(Eintrag.inhaltKennung(g.inhaltVersion).utf8),
-                                         metadataVersion: Data((g.metaVersion + rechte).utf8))
+                                         metadataVersion: Data((g.metaVersion + rechte + groesse).utf8))
     }
 
     /// Inhaltsversion für das System: Epoche + Version aus Atlas. Ändert sich

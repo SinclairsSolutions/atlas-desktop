@@ -226,7 +226,8 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension, NSFileProv
                 var aktuell = stand.eintrag(g.id) ?? g
                 if aktuell.groesse != groesse {
                     aktuell.groesse = groesse
-                    stand.setzen(aktuell)
+                    // Melden (nicht nur speichern), damit die Arbeitsmenge die Größe kennt.
+                    stand.setzenUndMelden(aktuell)
                 }
                 protokoll.notice("Inhalt geliefert: \(g.id, privacy: .public), \(groesse) Bytes")
                 completionHandler(ziel, Eintrag(aktuell), nil)

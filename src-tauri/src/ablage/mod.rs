@@ -66,6 +66,11 @@ use crate::{fenster, texte::t, ziel};
 
 pub const TOKEN_PRAEFIX: &str = "atlas_abl_";
 
+/// Erhöhen, wenn die Ablage auf den Rechnern einmal komplett neu aufgebaut
+/// werden muss. 1 = 0.3.0-beta.7: bis beta.6 blieben Dateien ohne bekannte
+/// Größe nach dem Laden leer; die alte Domäne behielt diese Fassungen.
+const DOMAENEN_EPOCHE: u32 = 1;
+
 /// Was die Erweiterung zum Verbinden braucht.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -79,6 +84,8 @@ pub struct Zugang {
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 struct Gespeichert {
+    /// Stand der Domäne (siehe DOMAENEN_EPOCHE).
+    domaenen_epoche: u32,
     gewuenscht: bool,
     geraet_id: Option<String>,
     geraet_name: Option<String>,
@@ -162,6 +169,17 @@ fn starten_jetzt(app: &AppHandle) {
         // Domäne sicherstellen (bleibt sonst über Neustarts bestehen) und Takt starten.
         if let Some(token) = plattform::token_lesen() {
             let z = Zugang { token, basis: basis(), geraet_id: g.geraet_id.clone().unwrap_or_default() };
+            if cfg!(target_os = "macos") && g.domaenen_epoche < DOMAENEN_EPOCHE {
+                // Einmal sauber neu aufbauen: Domäne entfernen (eigene, noch nicht
+                // hochgeladene Dateien sichert macOS dabei) und neu anmelden.
+                log::info!("Ablage: Domäne wird neu aufgebaut (Epoche {DOMAENEN_EPOCHE})");
+                if let Err(e) = plattform::trennen(app) {
+                    log::warn!("Ablage: Entfernen vor dem Neuaufbau: {e}");
+                }
+                let mut neu = laden(app);
+                neu.domaenen_epoche = DOMAENEN_EPOCHE;
+                speichern(app, &neu);
+            }
             if let Err(e) = plattform::verbinden(app, &z) {
                 log::warn!("Ablage: Anmelden beim System fehlgeschlagen: {e}");
                 fehler_setzen(app, Some(e));
@@ -271,6 +289,7 @@ pub async fn ablage_verbunden(app: AppHandle, token: String, geraet_id: String, 
         return Err(e);
     }
     let mut g = g;
+    g.domaenen_epoche = DOMAENEN_EPOCHE;
     g.geraet_id = Some(geraet_id);
     g.geraet_name = Some(name.chars().take(120).collect());
     speichern(&app, &g);
