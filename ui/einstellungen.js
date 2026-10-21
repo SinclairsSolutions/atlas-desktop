@@ -4,6 +4,32 @@
   var $ = function (id) { return document.getElementById(id); };
   var stand = null;
   function melden(t, fehler) { var m = $("meldung"); m.textContent = t || ""; m.className = "meldung" + (fehler ? " fehler" : ""); }
+    // Eingerichteter Ordner gut sichtbar: grüner Hinweis „Aktiv“, Ordnername
+  // fett, Pfad darunter. Ohne Ordner nur der leise Hinweistext.
+  function ordnerZeigen(el, pfad, leer, aktivText) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+    el.classList.toggle("ordner-aktiv", !!pfad);
+    if (!pfad) { el.textContent = leer; return; }
+    var teile = String(pfad).replace(/\/+$/, "").split("/");
+    var name = teile.pop() || pfad;
+    var oben = document.createElement("span");
+    oben.className = "ordner-kopf";
+    var pille = document.createElement("span");
+    pille.className = "ordner-pille";
+    pille.textContent = aktivText || tt("Aktiv", "Active");
+    var symbol = document.createElement("span");
+    symbol.className = "ordner-symbol";
+    symbol.textContent = "📁";
+    var n = document.createElement("b");
+    n.className = "ordner-name";
+    n.textContent = name;
+    oben.appendChild(pille); oben.appendChild(symbol); oben.appendChild(n);
+    var weg = document.createElement("span");
+    weg.className = "ordner-weg";
+    weg.textContent = teile.join("/").replace(/^\/Users\/[^/]+/, "~") || "/";
+    el.appendChild(oben); el.appendChild(weg);
+  }
+
   function sichtbar(el, an) { el.style.display = an ? "" : "none"; }
 
   // ---- Reiter (zuletzt offener wird gemerkt) ----
@@ -105,10 +131,10 @@
     $("minuten").value = String(e.sperreNachMinuten);
     $("minuten").disabled = !e.touchIdSperre;
     $("autostart").checked = stand.autostart;
-    $("ordnerPfad").textContent = e.ueberwachterOrdner || tt("nicht eingerichtet", "not set");
+    ordnerZeigen($("ordnerPfad"), e.ueberwachterOrdner, tt("nicht eingerichtet", "not set"), tt("Wird überwacht", "Watched"));
     $("ordnerZeigen").disabled = !e.ueberwachterOrdner;
     $("ordnerWeg").disabled = !e.ueberwachterOrdner;
-    $("exportPfad").textContent = e.exportOrdner || tt("Download-Ordner", "Downloads folder");
+    ordnerZeigen($("exportPfad"), e.exportOrdner, tt("Download-Ordner (Standard)", "Downloads folder (default)"), tt("Aktiv", "Active"));
     $("exportWeg").disabled = !e.exportOrdner;
     $("exportZeigen").disabled = !e.exportOrdner;
     $("wartend").textContent = stand.wartend
@@ -128,7 +154,7 @@
     sichtbar($("importVorschlagZeile"), !an);
     sichtbar($("importPfadZeile"), an);
     $("importVorschlag").textContent = stand.importVorschlag || "~/Atlas Import";
-    $("importPfad").textContent = e.importOrdner || "";
+    ordnerZeigen($("importPfad"), e.importOrdner, "", tt("Aktiv", "Active"));
     $("importJe").checked = e.importJeUnternehmen;
     importListe();
   }
@@ -255,8 +281,13 @@
   $("exportWeg").onclick = function () { setzen({ exportOrdner: null }); };
   $("exportZeigen").onclick = function () { inv("ordner_zeigen", { pfad: stand.einstellungen.exportOrdner }); };
   $("senden").onclick = function () { inv("warteschlange_senden").then(function () { setTimeout(laden, 1500); }); };
+  function erlaubtZeigen(r) {
+    var b = $("erlauben");
+    if (r === "granted") { b.textContent = tt("Erlaubt ✓", "Allowed ✓"); b.classList.add("erlaubt"); }
+  }
   $("erlauben").onclick = function () {
     inv("mitteilungen_erlauben").then(function (r) {
+      erlaubtZeigen(r);
       melden(r === "granted" ? tt("Mitteilungen erlaubt", "Notifications allowed") : tt("Bitte in den Systemeinstellungen → Mitteilungen erlauben", "Please allow in System Settings → Notifications"), r !== "granted");
     });
   };

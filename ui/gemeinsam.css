@@ -60,3 +60,17 @@ textarea {
 }
 .meldung { font-size: 12.5px; min-height: 18px; color: var(--leise); }
 .meldung.fehler { color: var(--warn); }
+
+/* Eingerichteter Ordner: deutlich sichtbar statt leiser Pfadzeile. */
+.pfad.ordner-aktiv { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; padding: 8px 10px;
+  border-radius: 12px; background: rgba(16, 122, 72, 0.08); box-shadow: inset 0 0 0 1px rgba(16, 122, 72, 0.18); word-break: normal; }
+.ordner-kopf { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ordner-pille { font-size: 11px; font-weight: 600; color: #0b6b3f; background: rgba(16, 122, 72, 0.14);
+  padding: 1px 8px; border-radius: 999px; }
+.ordner-symbol { font-size: 13px; }
+.ordner-name { font-size: 13px; color: var(--text, inherit); }
+.ordner-weg { font-size: 11.5px; color: var(--leise); word-break: break-all; }
+@media (prefers-color-scheme: dark) {
+  .pfad.ordner-aktiv { background: rgba(80, 200, 140, 0.10); box-shadow: inset 0 0 0 1px rgba(80, 200, 140, 0.22); }
+  .ordner-pille { color: #8fe0b5; background: rgba(80, 200, 140, 0.18); }
+}

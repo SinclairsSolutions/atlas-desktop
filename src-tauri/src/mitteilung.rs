@@ -136,7 +136,15 @@ mod mac {
         inhalt.setTitle(&NSString::from_str(titel));
         inhalt.setBody(&NSString::from_str(text));
         inhalt.setSound(Some(&UNNotificationSound::defaultSound()));
-        let id = NSString::from_str(&format!("atlas-probe-{}", std::process::id()));
+        // Jede Probe mit eigener Kennung: gleiche Kennung ersetzt die vorige
+        // Mitteilung still (ohne Banner) — deshalb zeigte „Test“ nichts.
+        let id = NSString::from_str(&format!(
+            "atlas-probe-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or_default()
+        ));
         let anfrage = UNNotificationRequest::requestWithIdentifier_content_trigger(&id, &inhalt, None);
         let (tx, rx) = tokio::sync::oneshot::channel::<Option<String>>();
         let tx = Mutex::new(Some(tx));
