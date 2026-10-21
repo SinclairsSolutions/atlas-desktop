@@ -70,7 +70,8 @@ pub const TOKEN_PRAEFIX: &str = "atlas_abl_";
 /// werden muss. 1 = 0.3.0-beta.7: bis beta.6 blieben Dateien ohne bekannte
 /// Größe nach dem Laden leer; die alte Domäne behielt diese Fassungen.
 /// 2 = 0.3.0-beta.8: Neuaufbau, nachdem Atlas alle Größen beim Auflisten liefert.
-const DOMAENEN_EPOCHE: u32 = 2;
+/// 3 = 0.3.0-beta.9: Neuaufbau mit frischem Stand (Größen immer aus dem Speicher).
+const DOMAENEN_EPOCHE: u32 = 3;
 
 /// Was die Erweiterung zum Verbinden braucht.
 #[derive(Clone, Serialize, Deserialize)]

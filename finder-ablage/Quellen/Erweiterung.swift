@@ -153,7 +153,8 @@ final class Erweiterung: NSObject, NSFileProviderReplicatedExtension, NSFileProv
             }
         }
         let geaendert = stand.uebernehmen(neu, vollstaendig: vollstaendig, workspacesVollstaendig: true)
-        protokoll.info("Abgleich: \(neu.count) Einträge, geändert \(geaendert) in \(Date().timeIntervalSince(start)) s")
+        let ohneGroesse = neu.values.filter { $0.art == .dokument && ($0.groesse ?? 0) <= 0 }.count
+        protokoll.notice("Abgleich: \(neu.count) Einträge (\(ohneGroesse) Dokumente ohne Größe), geändert \(geaendert) in \(Date().timeIntervalSince(start)) s")
     }
 
     /// Abgleich im Hintergrund; meldet Änderungen danach dem Finder.

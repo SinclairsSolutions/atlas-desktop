@@ -31,7 +31,11 @@ final class Aufzaehler: NSObject, NSFileProviderEnumerator {
                     // Workspace zum ersten Mal geöffnet: seinen Inhalt jetzt holen
                     // (Workspaces werden erst beim Öffnen geladen, nicht alle beim Start).
                     let ws = erw.stand.eintrag(container.rawValue)?.workspaceId
-                    if let ws, erw.stand.oeffnen(ws) {
+                    if container == .workingSet {
+                        // Arbeitsmenge (nach dem Anmelden/Neuaufbau der Domäne): nie den
+                        // gespeicherten Stand liefern — Größen darin können veraltet sein.
+                        try await erw.abgleichen(maxAlter: 0, erzwingen: true)
+                    } else if let ws, erw.stand.oeffnen(ws) {
                         try await erw.abgleichen(maxAlter: 0, erzwingen: true)
                     } else if erw.stand.istLeer {
                         try await erw.abgleichen(maxAlter: 15)

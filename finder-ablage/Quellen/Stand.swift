@@ -89,19 +89,21 @@ final class Stand {
         if d.epoche != Stand.epoche {
             // Neue Epoche: allen Einträgen eine neue Inhaltsversion melden, damit
             // macOS früher (leer) geladene Inhalte verwirft und neu lädt.
+            // Ab Epoche 4: gespeicherten Stand ganz verwerfen (neue Kennung = alle
+            // alten Anker ungültig); der Finder baut die Ablage frisch aus Atlas auf.
             epocheGewechselt = !d.eintraege.isEmpty
-            let naechster = d.anker + 1
-            for id in d.eintraege.keys { d.protokoll.append(Protokoll(anker: naechster, id: id, geloescht: false)) }
-            d.anker = naechster
-            d.epoche = Stand.epoche
+            let alt = d.eintraege.count
+            d = Datei(kennung: UUID().uuidString, anker: 1, aeltesterAnker: 1, eintraege: [:], protokoll: [],
+                      epoche: Stand.epoche, geoeffnet: d.geoeffnet ?? [])
+            protokoll.notice("Stand: neue Inhalts-Epoche \(Stand.epoche), \(alt) gespeicherte Einträge verworfen")
             speichern()
-            protokoll.notice("Stand: neue Inhalts-Epoche \(Stand.epoche), \(self.d.eintraege.count) Einträge neu gemeldet")
         }
     }
 
     /// Erhöhen, wenn alle Inhalte auf den Rechnern neu geladen werden müssen
-    /// (2 = 0.3.0-beta.5: in beta.1 als leer geladene Dateien; 3 = beta.8: Dateien ohne bekannte Größe blieben leer).
-    static let epoche = 3
+    /// (2 = 0.3.0-beta.5: in beta.1 als leer geladene Dateien; 3 = beta.8: Dateien ohne bekannte Größe blieben leer; 4 = beta.9: Stand neu,
+    /// Größen kommen jetzt immer aus dem Speicher).
+    static let epoche = 4
     /// Wurde die Epoche beim Start gewechselt? (Dann werden Dokumente geräumt.)
     private(set) var epocheGewechselt = false
 
