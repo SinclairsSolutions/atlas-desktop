@@ -63,6 +63,14 @@ python3 scripts/symbol-erzeugen.py ../sinclair-atlas/public/brand/atlas-compass.
 bun run symbole
 ```
 
+Safari-Erweiterung „Atlas Passwort-Safe“ aus dem Atlas-Repo übernehmen (baut dort und
+kopiert nach `safari-erweiterung/`; der Release-Workflow macht daraus
+`Contents/PlugIns/*.appex`, lokale Builds enthalten sie nicht):
+
+```sh
+bash scripts/erweiterung-uebernehmen.sh   # Standard: ../sinclair-atlas
+```
+
 ## Ausliefern
 
 `.github/workflows/bauen.yml`:
@@ -89,8 +97,10 @@ src-tauri/
     aktualisierung.rs  Updater
     menue.rs           Menüleiste
     taskleiste.rs      Windows: Zahl als Overlay-Symbol
+    safari.rs          Safari-Erweiterung: Zustand, Safari-Einstellungen öffnen
   capabilities/        Rechte der lokalen Seite und der Atlas-Seite
   tauri.conf.json      Konfiguration (Updater-Pubkey: Platzhalter, siehe TODO.md)
   Entitlements*.plist  macOS-Rechte (Passkeys vorbereitet, nicht aktiv)
 ui/index.html          Lade- und Offline-Seite
+safari-erweiterung/    gebaute Browser-Erweiterung (aus sinclair-atlas, für Safari)
 ```

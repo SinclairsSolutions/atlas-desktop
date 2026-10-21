@@ -132,6 +132,34 @@
     $("importJe").checked = e.importJeUnternehmen;
     importListe();
   }
+  // ---- Passwörter in Safari (Erweiterung steckt in der Mac-App) ----
+  var SAFARI_TEXT = {
+    an: ["Eingeschaltet. Klick in Safari auf das Atlas-Symbol, um dich zu verbinden.", "Turned on. Click the Atlas icon in Safari to connect."],
+    aus: ["Noch aus. Einmal in Safari einschalten — dann steht das Atlas-Symbol in der Symbolleiste.", "Still off. Turn it on once in Safari — then the Atlas icon appears in the toolbar."],
+    unbekannt: ["Safari kennt die Erweiterung noch nicht. Liegt Sinclair Atlas unter „Programme“? Danach Safari einmal neu starten.", "Safari doesn’t know the extension yet. Is Sinclair Atlas in “Applications”? Then restart Safari once."],
+    fehlt: ["In dieser Version nicht enthalten. Die aktuelle Mac-App gibt es auf sinclair-atlas.com.", "Not included in this version. Get the current Mac app from sinclair-atlas.com."]
+  };
+  function safariStand() {
+    return inv("safari_erweiterung_status").then(function (z) {
+      var t = SAFARI_TEXT[z] || SAFARI_TEXT.unbekannt;
+      var el = $("safariStand");
+      el.textContent = tt(t[0], t[1]);
+      el.style.color = z === "an" ? "var(--akzent)" : "";
+      $("safariOeffnen").disabled = z === "fehlt";
+      $("safariOeffnen").textContent = z === "an"
+        ? tt("Safari-Einstellungen öffnen", "Open Safari settings")
+        : tt("In Safari einschalten", "Turn on in Safari");
+    }).catch(function () {});
+  }
+  $("safariOeffnen").onclick = function () {
+    inv("safari_erweiterung_oeffnen")
+      .then(function () { melden(tt("Safari-Einstellungen geöffnet", "Safari settings opened")); })
+      .catch(function (e) { melden(String(e), true); })
+      .then(function () { setTimeout(safariStand, 1500); });
+  };
+  // Nach dem Einschalten in Safari zurück in die App: Stand neu holen.
+  window.addEventListener("focus", function () { if (stand && stand.plattform === "macos") safariStand(); });
+
   function laden() { return inv("einstellungen_lesen").then(function (r) { stand = r; zeigen(); }); }
   function setzen(patch) {
     var neu = Object.assign({}, stand.einstellungen, patch);
@@ -199,7 +227,14 @@
       "Nothing shows up? Open Settings → System → Notifications and allow Sinclair Atlas. Also check whether Do Not Disturb is on."
     );
   }
-  laden();
+  laden().then(function () {
+    // Die Safari-Erweiterung gibt es nur auf dem Mac.
+    if (stand.plattform === "macos") safariStand();
+    else {
+      sichtbar($("reiterPasswoerter"), false);
+      if (document.querySelector('.seite.an[data-seite="passwoerter"]')) reiterZeigen("allgemein");
+    }
+  });
   // Warteschlange und Workspace-Liste aktuell halten (Atlas meldet sie nach der Anmeldung).
   setInterval(function () {
     if (stand) inv("einstellungen_lesen").then(function (r) { stand.wartend = r.wartend; stand.import = r.import; zeigen(); });

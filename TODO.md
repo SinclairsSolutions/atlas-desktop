@@ -188,6 +188,19 @@ Noch zu testen, am besten mit der signierten DMG aus dem ersten Workflow-Lauf:
 - [ ] Nach 0.1.0 eine 0.1.1 veröffentlichen. Spätestens 20 s nach dem Start fragt die
       App; „Nach Updates suchen …“ im App-Menü funktioniert.
 
+**Safari-Erweiterung in der App** (seit 21.10.2026; die eigene Container-App aus dem
+Atlas-Workflow „Safari-Erweiterung“ ist damit überflüssig)
+- [ ] Erster CI-Lauf: Schritt „Safari-Erweiterung bauen und signieren“ grün, Prüfschritt
+      findet `Contents/PlugIns/*.appex` in App und Updater-Paket, Notarisierung angenommen.
+- [ ] App nach „Programme“, einmal starten → Einstellungen → Passwörter zeigt „Noch aus“;
+      „In Safari einschalten“ öffnet Safari bei „Erweiterungen“; nach dem Anhaken „Eingeschaltet“.
+- [ ] Safari: Atlas-Symbol → „Mit Atlas verbinden“ → Kopplung und Ausfüllen wie bisher.
+- [ ] Wer die alte Container-App „Atlas Passwort-Safe“ hat: andere Bundle-ID, also zwei
+      Einträge in Safari — alte App löschen, neue Erweiterung einmal neu verbinden.
+- [ ] Nach einem Update über den Updater bleibt die Erweiterung eingeschaltet.
+- Erweiterung aktualisieren: `bash scripts/erweiterung-uebernehmen.sh` (baut im Atlas-Repo,
+  kopiert nach `safari-erweiterung/`), committen, neue App-Version taggen.
+
 ---
 
 ## 3. Atlas — nur notiert, nicht geändert

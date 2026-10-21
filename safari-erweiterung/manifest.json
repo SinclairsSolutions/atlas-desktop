@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "Atlas Passwort-Safe",
+  "short_name": "Atlas",
+  "description": "Zugänge aus dem Atlas-Passwort-Safe sicher im Browser ausfüllen — Zero-Knowledge, entschlüsselt nur auf diesem Gerät.",
+  "version": "0.2.0",
+  "minimum_chrome_version": "116",
+  "action": {
+    "default_title": "Atlas Passwort-Safe",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/logo-schwarz-16.png",
+      "32": "icons/logo-schwarz-32.png"
+    }
+  },
+  "background": {
+    "service_worker": "dist/background.js",
+    "type": "module"
+  },
+  "permissions": ["storage", "activeTab", "scripting", "alarms", "clipboardWrite"],
+  "host_permissions": ["https://sinclair-atlas.com/*", "https://*.supabase.co/*"],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://sinclair-atlas.com/erweiterung-verbinden*",
+        "https://sinclair-atlas.com/erweiterung-entsperren*"
+      ],
+      "js": ["dist/verbinden.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "passwort-safe@sinclair-atlas.com",
+      "strict_min_version": "121.0"
+    }
+  },
+  "icons": {
+    "16": "icons/logo-schwarz-16.png",
+    "32": "icons/logo-schwarz-32.png",
+    "48": "icons/logo-schwarz-48.png",
+    "128": "icons/logo-schwarz-128.png"
+  },
+  "optional_host_permissions": ["https://*/*"],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/logo-schwarz-48.png", "icons/logo-weiss-48.png"],
+      "matches": ["https://*/*"]
+    }
+  ]
+}

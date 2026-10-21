@@ -107,6 +107,96 @@ jobs:
           fi
           echo "APPLE_SIGNING_IDENTITY=$IDENT" >> "$GITHUB_ENV"
 
+      # Safari-Erweiterung „Atlas Passwort-Safe“ (aus safari-erweiterung/, übernommen
+      # mit scripts/erweiterung-uebernehmen.sh) als .appex bauen und selbst signieren.
+      # Tauri kopiert sie über bundle.macOS.files nach Contents/PlugIns, BEVOR es die
+      # App signiert — und signiert die App ohne --deep: die Erweiterung behält ihre
+      # eigene Signatur (mit Sandbox, Pflicht für App-Erweiterungen). Notarisierung,
+      # DMG und Updater-Paket (.app.tar.gz) enthalten sie damit automatisch.
+      - name: Safari-Erweiterung bauen und signieren
+        env:
+          # Muss mit der App-ID beginnen; derselbe Wert steht in src-tauri/src/safari.rs.
+          ERWEITERUNG_ID: com.sinclairs-solutions.atlas.passwort-safe
+        run: |
+          set -euo pipefail
+          test -f safari-erweiterung/manifest.json || { echo "::error::safari-erweiterung/ fehlt (scripts/erweiterung-uebernehmen.sh)"; exit 1; }
+          V=$(bun -e 'console.log(require("./package.json").version)')
+          ARBEIT="$RUNNER_TEMP/safari"
+          rm -rf "$ARBEIT" && mkdir -p "$ARBEIT/quelle"
+          cp -R safari-erweiterung/. "$ARBEIT/quelle/"
+          rm -f "$ARBEIT/quelle/HERKUNFT.txt"
+
+          xcrun safari-web-extension-converter "$ARBEIT/quelle" \
+            --project-location "$ARBEIT/projekt" \
+            --app-name "Sinclair Atlas" \
+            --bundle-identifier com.sinclairs-solutions.atlas \
+            --macos-only --copy-resources --no-open --no-prompt --force
+
+          PROJ=$(find "$ARBEIT/projekt" -maxdepth 3 -name "*.xcodeproj" | head -1)
+          test -n "$PROJ" || { echo "::error::Converter hat kein Xcode-Projekt erzeugt"; exit 1; }
+          xcodebuild -list -json -project "$PROJ" > "$ARBEIT/liste.json"
+          ZIEL=$(jq -r '.project.targets[] | select(test("Extension"))' "$ARBEIT/liste.json")
+          if [ -z "$ZIEL" ] || [ "$(printf '%s\n' "$ZIEL" | wc -l | tr -d ' ')" != 1 ]; then
+            echo "::error::Erweiterungs-Target nicht eindeutig:"; cat "$ARBEIT/liste.json"; exit 1
+          fi
+          echo "Target: $ZIEL"
+
+          # Nur das Erweiterungs-Target, universal, unsigniert (signiert wird unten).
+          xcodebuild -project "$PROJ" -target "$ZIEL" -configuration Release \
+            SYMROOT="$ARBEIT/build" OBJROOT="$ARBEIT/obj" \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO MACOSX_DEPLOYMENT_TARGET=12.0 \
+            PRODUCT_BUNDLE_IDENTIFIER="$ERWEITERUNG_ID" \
+            MARKETING_VERSION="$V" CURRENT_PROJECT_VERSION="$V" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+          GEBAUT=$(find "$ARBEIT/build" -maxdepth 3 -name "*.appex" -type d | head -1)
+          test -n "$GEBAUT" || { echo "::error::Kein .appex gebaut"; exit 1; }
+          NAME=$(basename "$GEBAUT")
+          mkdir -p build/safari
+          APPEX="$GITHUB_WORKSPACE/build/safari/$NAME"
+          rm -rf "$APPEX" && ditto "$GEBAUT" "$APPEX"
+
+          PL="$APPEX/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Atlas Passwort-Safe" "$PL" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Atlas Passwort-Safe" "$PL"
+          ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$PL")
+          [ "$ID" = "$ERWEITERUNG_ID" ] || { echo "::error::Bundle-ID der Erweiterung ist $ID"; exit 1; }
+          /usr/libexec/PlistBuddy -c "Print :NSExtension" "$PL"
+          EXE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$PL")
+          ARCHS=$(lipo -archs "$APPEX/Contents/MacOS/$EXE")
+          echo "Architekturen: $ARCHS"
+          case "$ARCHS" in *arm64*x86_64*|*x86_64*arm64*) ;; *) echo "::error::Erweiterung nicht universal ($ARCHS)"; exit 1;; esac
+
+          # App-Erweiterungen laufen nur in der Sandbox (Rechte wie im Converter-Template).
+          ENT="$ARBEIT/erweiterung.entitlements"
+          cat > "$ENT" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>com.apple.security.app-sandbox</key><true/>
+            <key>com.apple.security.files.user-selected.read-only</key><true/>
+          </dict></plist>
+          PLIST
+          plutil -lint "$ENT"
+
+          # Von innen nach außen: eventuell eingebettete Bibliotheken zuerst.
+          find "$APPEX/Contents" \( -name "*.dylib" -o -name "*.framework" \) -prune -print0 \
+            | while IFS= read -r -d '' TEIL; do
+                codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$TEIL"
+              done
+          codesign --force --options runtime --timestamp --entitlements "$ENT" \
+            --sign "$APPLE_SIGNING_IDENTITY" "$APPEX"
+          codesign --verify --strict --verbose=2 "$APPEX"
+          codesign -d --entitlements - "$APPEX"
+
+          # Zusatz-Konfiguration für tauri build: .appex nach Contents/PlugIns kopieren.
+          jq -n --arg k "PlugIns/$NAME" --arg v "$APPEX" '{bundle: {macOS: {files: {($k): $v}}}}' \
+            > "$RUNNER_TEMP/tauri.safari.conf.json"
+          cat "$RUNNER_TEMP/tauri.safari.conf.json"
+          echo "ERWEITERUNG_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "ERWEITERUNG_ID=$ERWEITERUNG_ID" >> "$GITHUB_ENV"
+
       - name: Bauen, signieren, notarisieren (Release-Entwurf bei Tag)
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
@@ -119,7 +209,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          args: --target universal-apple-darwin --bundles app,dmg
+          args: --target universal-apple-darwin --bundles app,dmg --config ${{ runner.temp }}/tauri.safari.conf.json
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: "Sinclair Atlas __VERSION__"
           releaseBody: "Neue Version der Desktop-App. Installierte Apps aktualisieren sich nach dem Veröffentlichen selbst."
@@ -135,6 +225,27 @@ jobs:
           xcrun stapler validate "$APP"
           spctl --assess --type execute --verbose=4 "$APP"
           lipo -archs "$APP/Contents/MacOS/Sinclair Atlas"
+
+          # Safari-Erweiterung: eingebaut, eigene Signatur mit Sandbox, gleiches Team.
+          APPEX="$APP/Contents/PlugIns/$ERWEITERUNG_NAME"
+          test -d "$APPEX" || { echo "::error::$APPEX fehlt in der App"; exit 1; }
+          codesign --verify --strict --verbose=2 "$APPEX"
+          RECHTE=$(codesign -d --entitlements - "$APPEX" 2>/dev/null || true)
+          case "$RECHTE" in *com.apple.security.app-sandbox*) ;; *) echo "::error::Erweiterung ohne Sandbox-Recht signiert"; exit 1;; esac
+          T_APP=$(codesign -dv "$APP" 2>&1 | sed -n 's/^TeamIdentifier=//p')
+          T_EXT=$(codesign -dv "$APPEX" 2>&1 | sed -n 's/^TeamIdentifier=//p')
+          [ -n "$T_APP" ] && [ "$T_APP" = "$T_EXT" ] || { echo "::error::Team-ID von App und Erweiterung verschieden"; exit 1; }
+          [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APPEX/Contents/Info.plist")" = "$ERWEITERUNG_ID" ]
+
+          # Updater-Paket enthält die Erweiterung (sonst verlöre sie jedes Update).
+          TGZ="$APP.tar.gz"
+          if [ -f "$TGZ" ]; then
+            # grep ohne -q: liest alles, sonst bricht tar mit SIGPIPE ab (pipefail).
+            tar -tzf "$TGZ" | grep -F "Contents/PlugIns/$ERWEITERUNG_NAME/Contents/Info.plist" > /dev/null \
+              || { echo "::error::Updater-Paket ohne Safari-Erweiterung"; exit 1; }
+          else
+            echo "::warning::Kein Updater-Paket gefunden ($TGZ)"
+          fi
 
       - name: DMG als Artefakt
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

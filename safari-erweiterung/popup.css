@@ -1,0 +1,65 @@
+:root { color-scheme: light dark; --gruen: #527e66; --blatt: #87d46c; --wald: #04170d; --text: #1b1d22; --leise: #5b6660; }
+* { box-sizing: border-box; }
+/* Feste Breite: lange Einträge dürfen das Fenster nicht aufblähen. */
+html, body { width: 380px; max-width: 380px; overflow-x: hidden; }
+body { margin: 0; font: 13px system-ui, -apple-system, sans-serif; color: var(--text);
+  background: linear-gradient(160deg, #e3ece5 0%, #f4f2ee 55%, #eef3ea 100%); }
+header { display: flex; gap: 10px; align-items: center; padding: 14px 16px 12px; width: 100%;
+  background: linear-gradient(90deg, color-mix(in oklab, var(--gruen) 28%, transparent), color-mix(in oklab, var(--blatt) 20%, transparent) 60%, color-mix(in oklab, #9db5a3 24%, transparent)); }
+header > div { min-width: 0; }
+.logo { flex: none; width: 16px; height: 32px; background: var(--gruen); -webkit-mask: url(icon-mask.png) center/contain no-repeat; mask: url(icon-mask.png) center/contain no-repeat; }
+h1 { font-size: 14px; margin: 0; }
+header p { margin: 2px 0 0; color: var(--leise); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+main { padding: 12px 14px 14px; display: grid; gap: 10px; }
+.karte { background: rgba(255,255,255,.62); backdrop-filter: blur(12px); border-radius: 14px; padding: 6px; box-shadow: 0 6px 22px rgba(0,0,0,.06); min-width: 0; }
+.karte > .klein:first-child { padding: 4px 8px 2px; }
+.liste { max-height: 260px; overflow-y: auto; }
+.zeile { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; min-width: 0; }
+.zeile:hover { background: rgba(0,0,0,.04); }
+.text { flex: 1 1 auto; min-width: 0; }
+.titel { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.klein { color: var(--leise); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aktionen { flex: none; display: flex; align-items: center; gap: 4px; }
+button { font: inherit; border: 0; border-radius: 10px; padding: 7px 10px; cursor: pointer; background: rgba(0,0,0,.05); color: inherit; }
+button:hover { background: rgba(0,0,0,.09); }
+button.haupt { background: var(--wald); color: #fff; }
+button.haupt:hover { background: #163323; }
+.aktionen button.haupt { padding: 6px 10px; font-size: 12px; }
+button.symbol { width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; color: var(--leise); }
+button.symbol:hover { background: rgba(0,0,0,.07); color: var(--text); }
+button.symbol svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+input, select { font: inherit; width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(0,0,0,.08); background: rgba(255,255,255,.85); color: inherit; }
+input:focus, select:focus { outline: 2px solid color-mix(in oklab, var(--gruen) 50%, transparent); outline-offset: 0; }
+.karte > input { border: 0; background: transparent; }
+.marke { display: inline-block; margin-top: 2px; font-size: 10px; padding: 1px 6px; border-radius: 999px; background: color-mix(in oklab, var(--gruen) 18%, transparent); color: var(--gruen); }
+.fehler { color: #b42318; font-size: 12px; padding: 4px 8px; }
+.hinweis { color: var(--leise); font-size: 11px; line-height: 1.45; padding: 4px 8px; margin: 0; }
+.leiste { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.warnung { margin: 2px 6px 8px; padding: 8px 10px; border-radius: 12px; background: rgba(244, 189, 49, .2); display: grid; gap: 6px; font-size: 12px; }
+.warnung p { margin: 0; }
+.warnung label { display: flex; gap: 6px; align-items: center; white-space: normal; }
+.warnung input[type="checkbox"] { width: auto; }
+@media (prefers-color-scheme: dark) {
+  :root { --text: #e8ebe9; --leise: #a2aca6; }
+  body { background: linear-gradient(160deg, #141a16, #1b1d22); }
+  .karte, input, select { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.08); }
+  .zeile:hover, button { background: rgba(255,255,255,.07); }
+  button.symbol { background: transparent; }
+  button.haupt { background: var(--blatt); color: #0b130e; }
+}
+.schalter { display: flex; gap: 10px; align-items: flex-start; padding: 6px 8px; cursor: pointer; }
+.schalter input { width: auto; margin-top: 3px; accent-color: var(--gruen); }
+.schalter .hinweis { padding: 2px 0 0; }
+.einzug { padding-left: 8px; padding-right: 8px; }
+.karte .leiste { justify-content: flex-start; flex-wrap: wrap; padding-bottom: 6px; padding-top: 4px; }
+.erklaerung { margin: 4px 6px 8px; padding: 10px 12px; border-radius: 12px; display: grid; gap: 6px; font-size: 12px; line-height: 1.45;
+  background: color-mix(in oklab, var(--gruen) 12%, transparent); }
+.erklaerung p { margin: 0; }
+.erklaerung ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+.erklaerung .klein-titel { font-size: 11px; color: var(--gruen); margin-top: 2px; }
+.erklaerung .klein { white-space: normal; }
+.suchzeile { display: flex; gap: 6px; align-items: center; }
+.suchzeile > input { flex: 1; min-width: 0; }
+.suchzeile > button { flex: none; white-space: nowrap; }
+.formular { display: grid; gap: 8px; padding: 10px; }
+.feld { display: grid; gap: 3px; font-size: 11px; color: var(--leise); }

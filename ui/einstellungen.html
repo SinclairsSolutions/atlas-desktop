@@ -80,6 +80,7 @@
       <button data-reiter="export"><span class="ikon i-blau"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg></span><span data-de="Downloads &amp; Export" data-en="Downloads &amp; Export">Downloads &amp; Export</span></button>
       <button data-reiter="mitteilungen"><span class="ikon i-gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg></span><span data-de="Mitteilungen" data-en="Notifications">Mitteilungen</span></button>
       <button data-reiter="sicherheit"><span class="ikon i-rot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span><span data-de="Sicherheit" data-en="Security">Sicherheit</span></button>
+      <button data-reiter="passwoerter" id="reiterPasswoerter"><span class="ikon i-blau"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M14 9l2 2"/></svg></span><span data-de="Passwörter" data-en="Passwords">Passwörter</span></button>
       <button data-reiter="ueber"><span class="ikon i-grau"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></span><span data-de="Über" data-en="About">Über</span></button>
       <div class="fuss"><div class="meldung" id="meldung"></div></div>
     </nav>
@@ -202,6 +203,19 @@
             <label class="schalter"><input type="checkbox" id="touch" /><span></span></label></div>
           <div class="zeile"><div class="t"><b data-de="Wieder sperren nach" data-en="Lock again after">Wieder sperren nach</b><span class="erkl" data-de="Wie lange Atlas im Hintergrund sein darf, bevor wieder Touch ID nötig ist." data-en="How long Atlas may be in the background before Touch ID is needed again.">Wie lange Atlas im Hintergrund sein darf, bevor wieder Touch ID nötig ist.</span></div>
             <select id="minuten"><option value="0" data-de="nur beim Öffnen" data-en="only on open">nur beim Öffnen</option><option value="5">5 min</option><option value="15">15 min</option><option value="60">60 min</option></select></div>
+        </div>
+      </section>
+
+      <!-- ============ Passwörter ============ -->
+      <section class="seite" data-seite="passwoerter">
+        <h1 data-de="Passwörter" data-en="Passwords">Passwörter</h1>
+        <p class="leise intro" data-de="Deine Zugänge aus dem Atlas-Passwort-Safe auch außerhalb von Atlas nutzen." data-en="Use your logins from the Atlas password safe outside Atlas, too.">Deine Zugänge aus dem Atlas-Passwort-Safe auch außerhalb von Atlas nutzen.</p>
+        <div class="karte">
+          <h2 data-de="Passwörter in Safari" data-en="Passwords in Safari">Passwörter in Safari</h2>
+          <p class="leise" data-de="Die Safari-Erweiterung „Atlas Passwort-Safe“ ist in dieser App schon enthalten — ein eigener Download ist nicht nötig. Einmal in Safari einschalten, dann mit deinem Atlas-Konto verbinden. Ausgefüllt wird nur auf diesem Gerät; Atlas sieht deine Passwörter nie im Klartext." data-en="The Safari extension “Atlas Passwort-Safe” is already included in this app — no separate download needed. Turn it on once in Safari, then connect it to your Atlas account. Filling happens only on this device; Atlas never sees your passwords in plain text.">Die Safari-Erweiterung „Atlas Passwort-Safe“ ist in dieser App schon enthalten — ein eigener Download ist nicht nötig. Einmal in Safari einschalten, dann mit deinem Atlas-Konto verbinden. Ausgefüllt wird nur auf diesem Gerät; Atlas sieht deine Passwörter nie im Klartext.</p>
+          <div class="zeile"><div class="t"><b data-de="Erweiterung in Safari" data-en="Extension in Safari">Erweiterung in Safari</b><span class="erkl" id="safariStand"></span></div>
+            <div class="knoepfe"><button class="haupt" id="safariOeffnen" data-de="In Safari einschalten" data-en="Turn on in Safari">In Safari einschalten</button></div></div>
+          <div class="hinweis" data-de="So geht’s: Safari öffnet seine Einstellungen bei „Erweiterungen“. Dort „Atlas Passwort-Safe“ anhaken und bei „Websites“ erlauben. Danach in der Safari-Symbolleiste auf das Atlas-Symbol klicken und „Mit Atlas verbinden“ wählen." data-en="How it works: Safari opens its settings at “Extensions”. Tick “Atlas Passwort-Safe” there and allow it for websites. Then click the Atlas icon in the Safari toolbar and choose “Connect to Atlas”.">So geht’s: Safari öffnet seine Einstellungen bei „Erweiterungen“. Dort „Atlas Passwort-Safe“ anhaken und bei „Websites“ erlauben. Danach in der Safari-Symbolleiste auf das Atlas-Symbol klicken und „Mit Atlas verbinden“ wählen.</div>
         </div>
       </section>
 

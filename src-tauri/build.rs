@@ -28,6 +28,8 @@ fn main() {
             "import_ordner_setzen",
             "import_ordner_anlegen",
             "nach_updates_suchen",
+            "safari_erweiterung_status",
+            "safari_erweiterung_oeffnen",
         ]),
     ))
     .expect("tauri-build fehlgeschlagen");

@@ -8,6 +8,7 @@ mod fenster;
 mod importordner;
 mod menue;
 mod mitteilung;
+mod safari;
 mod sperre;
 mod symbol;
 #[cfg(windows)]
@@ -87,6 +88,8 @@ pub fn run() {
             werkzeuge::notiz_senden,
             werkzeuge::beleg_auswaehlen,
             werkzeuge::bildschirmfoto,
+            safari::safari_erweiterung_status,
+            safari::safari_erweiterung_oeffnen,
         ])
         .menu(menue::erstellen)
         .on_menu_event(menue::ereignis)
