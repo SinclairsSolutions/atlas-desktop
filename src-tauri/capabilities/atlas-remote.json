@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "atlas-remote",
-  "description": "Die Live-Seite von Atlas: Mitteilungen, Dock-Zahl, Drucken, fremde Links im Standardbrowser, Downloads in den Download- bzw. Export-Ordner, Bestätigung von Eingangs-Uploads, Workspace-Liste für den Import-Ordner, Touch-ID-Prüfung und Fenster ziehen, Ablage im Finder koppeln/trennen, Mikrofon-Erlaubnis prüfen — sonst kein Datei- oder Systemzugriff.",
+  "description": "Die Live-Seite von Atlas: Mitteilungen, Dock-Zahl, Drucken, fremde Links im Standardbrowser, Downloads in den Download- bzw. Export-Ordner, Bestätigung von Eingangs-Uploads, Workspace-Liste für den Import-Ordner, Touch-ID-Prüfung und Fenster ziehen, Ablage im Finder koppeln/trennen, Mikrofon-Erlaubnis prüfen, Fensterhintergrund hell/dunkel — sonst kein Datei- oder Systemzugriff.",
   "windows": [
     "main",
     "neben-*"
@@ -31,6 +31,7 @@
     "allow-ablage-fehler",
     "allow-ablage-abgemeldet",
     "allow-mikrofon-erlaubnis",
-    "allow-mikrofon-einstellungen"
+    "allow-mikrofon-einstellungen",
+    "allow-erscheinung-geaendert"
   ]
 }

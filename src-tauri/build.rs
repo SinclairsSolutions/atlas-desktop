@@ -39,6 +39,7 @@ fn main() {
             "ablage_info",
             "ablage_schalten",
             "ablage_zeigen",
+            "erscheinung_geaendert",
         ]),
     ))
     .expect("tauri-build fehlgeschlagen");

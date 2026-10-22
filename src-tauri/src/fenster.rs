@@ -65,13 +65,14 @@ pub fn hauptfenster_bauen(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .inner_size(1360.0, 880.0)
         .min_inner_size(880.0, 560.0)
         .center();
-    ausstatten(app, titelleiste(b), HAUPT.to_string()).build()
+    ausstatten(app, titelleiste(b, crate::erscheinung::hintergrund(app)), HAUPT.to_string()).build()
 }
 
 /// Titelleiste (macOS): kein grauer Balken, kein Titeltext — Atlas reicht bis
 /// unter die Fensterknöpfe.
 fn titelleiste<'a>(
     b: WebviewWindowBuilder<'a, tauri::Wry, AppHandle>,
+    hintergrund: tauri::window::Color,
 ) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
     #[cfg(target_os = "macos")]
     {
@@ -81,10 +82,12 @@ fn titelleiste<'a>(
         b.title_bar_style(tauri::TitleBarStyle::Overlay)
             .hidden_title(true)
             .traffic_light_position(tauri::LogicalPosition::new(22.0, 21.0))
-            .background_color(tauri::window::Color(247, 248, 246, 255))
+            // Zuletzt bekannte Darstellung von Atlas (hell/dunkel), siehe erscheinung.rs.
+            .background_color(hintergrund)
     }
     #[cfg(not(target_os = "macos"))]
     {
+        let _ = hintergrund;
         b
     }
 }
@@ -94,16 +97,19 @@ fn titelleiste<'a>(
 /// die Knöpfe sitzen mittig darin.
 fn eigene_titelleiste<'a>(
     b: WebviewWindowBuilder<'a, tauri::Wry, AppHandle>,
+    hintergrund: tauri::window::Color,
 ) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
     #[cfg(target_os = "macos")]
     {
         b.title_bar_style(tauri::TitleBarStyle::Overlay)
             .hidden_title(true)
             .traffic_light_position(tauri::LogicalPosition::new(16.0, 13.0))
-            .background_color(tauri::window::Color(247, 248, 246, 255))
+            // Zuletzt bekannte Darstellung von Atlas (hell/dunkel), siehe erscheinung.rs.
+            .background_color(hintergrund)
     }
     #[cfg(not(target_os = "macos"))]
     {
+        let _ = hintergrund;
         b
     }
 }
@@ -124,7 +130,8 @@ pub fn weiteres_fenster(app: &AppHandle, url: Url) {
         .title("Sinclair Atlas")
         .inner_size(1280.0, 840.0)
         .min_inner_size(720.0, 480.0);
-    let b = if eigenes { eigene_titelleiste(b) } else { titelleiste(b) };
+    let farbe = crate::erscheinung::hintergrund(app);
+    let b = if eigenes { eigene_titelleiste(b, farbe) } else { titelleiste(b, farbe) };
     if let Err(e) = ausstatten(app, b, label).build() {
         log::error!("Neues Fenster ließ sich nicht öffnen: {e}");
     }
@@ -317,7 +324,11 @@ fn neues_fenster(app: &AppHandle, url: Url, features: NewWindowFeatures) -> NewW
         .window_features(features);
         // „Eigenes Fenster“ aus Atlas (…?fenster=1): gleiche Titelzeile wie aus dem Menü.
         let eigenes = url.query().is_some_and(|q| q.split('&').any(|p| p == "fenster=1"));
-        let b = if eigenes { eigene_titelleiste(b) } else { b };
+        let farbe = crate::erscheinung::hintergrund(app);
+        #[cfg(target_os = "macos")]
+        let b = if eigenes { eigene_titelleiste(b, farbe) } else { b.background_color(farbe) };
+        #[cfg(not(target_os = "macos"))]
+        let b = if eigenes { eigene_titelleiste(b, farbe) } else { b };
         return match ausstatten(app, b, label).build() {
             Ok(window) => NewWindowResponse::Create { window },
             Err(e) => {

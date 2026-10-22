@@ -105,6 +105,7 @@ pub fn erstellen<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &MenuItem::with_id(app, "zoom-plus", t("Vergrößern", "Zoom In"), true, Some("CmdOrCtrl+="))?,
             &MenuItem::with_id(app, "zoom-minus", t("Verkleinern", "Zoom Out"), true, Some("CmdOrCtrl+-"))?,
             &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(app, "erscheinung", t("Darstellung …", "Appearance …"), true, None::<&str>)?,
             &Submenu::with_items(
                 app,
                 t("App-Symbol", "App Icon"),
@@ -232,6 +233,19 @@ pub fn ereignis(app: &AppHandle, event: MenuEvent) {
     }
     if id == "hauptfenster" {
         fenster::hauptfenster_zeigen(app);
+        return;
+    }
+    if id == "erscheinung" {
+        // Darstellungs-Dialog von Atlas im aktiven Atlas-Fenster (sonst Hauptfenster).
+        let w = fenster::aktives_fenster(app)
+            .filter(|w| w.url().is_ok_and(|u| ziel::ist_atlas(&u)))
+            .or_else(|| {
+                fenster::hauptfenster_zeigen(app);
+                fenster::hauptfenster(app)
+            });
+        if let Some(w) = w {
+            let _ = w.eval("window.dispatchEvent(new CustomEvent(\"atlas-erscheinung-oeffnen\"))");
+        }
         return;
     }
     let Some(w) = fenster::aktives_fenster(app) else { return };

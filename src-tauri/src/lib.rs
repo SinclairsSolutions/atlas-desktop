@@ -5,6 +5,7 @@ mod downloads;
 mod eingang;
 mod einstellungen;
 mod erreichbarkeit;
+mod erscheinung;
 mod fenster;
 mod importordner;
 mod menue;
@@ -65,6 +66,7 @@ pub fn run() {
         .manage(sperre::Zustand::default())
         .manage(zustand::Zustand::default())
         .manage(ablage::Ablage::default())
+        .manage(erscheinung::Erscheinung::default())
         .invoke_handler(tauri::generate_handler![
             bruecke::mitteilung,
             bruecke::mitteilungen_erlauben,
@@ -102,6 +104,7 @@ pub fn run() {
             ablage::ablage_info,
             ablage::ablage_schalten,
             ablage::ablage_zeigen,
+            erscheinung::erscheinung_geaendert,
         ])
         .menu(menue::erstellen)
         .on_menu_event(menue::ereignis)
@@ -110,6 +113,7 @@ pub fn run() {
             *app.state::<einstellungen::Speicher>().0.lock().unwrap() = einstellungen::laden(&handle);
             mitteilung::einrichten(&handle);
             importordner::laden(&handle);
+            erscheinung::laden(&handle);
 
             if ziel::ist_uebersteuert() {
                 // Nur Debug: lokale Atlas-Instanz bekommt dieselben Brückenrechte.
@@ -135,6 +139,7 @@ pub fn run() {
                         .permission("allow-ablage-verbunden")
                         .permission("allow-ablage-fehler")
                         .permission("allow-ablage-abgemeldet")
+                        .permission("allow-erscheinung-geaendert")
                         .permission("core:window:allow-start-dragging"),
                 )?;
                 log::warn!("Atlas Desktop lädt {}", ziel::start_url());

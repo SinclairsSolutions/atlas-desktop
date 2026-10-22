@@ -436,3 +436,16 @@ wie auf dem Mac (`src-tauri/src/ablage/api.rs`).
       hell und dunkel, auch nach Neustart des Finders.
 - Rückfall, falls der Finder es nicht lädt (leeres/fehlendes Symbol):
   `CFBundleSymbolName` wieder auf `globe.europe.africa.fill` setzen.
+
+### Nach 0.3.2: Fensterhintergrund folgt der Darstellung
+
+- Atlas ruft `__ATLAS_DESKTOP__.erscheinungGeaendert({ dunkel, fenster })` auf (die Brücke
+  meldet zusätzlich beim Laden `window.__ATLAS_DARSTELLUNG__`). Befehl
+  `erscheinung_geaendert` (`src-tauri/src/erscheinung.rs`) färbt den Hintergrund des
+  aufrufenden Fensters: hell (247, 248, 246), dunkel (7, 20, 13) = `--background` aus `.dark`
+  in Atlas. Der Stand liegt in `erscheinung.json`; neue Fenster starten damit.
+  Kein `set_theme` (würde `prefers-color-scheme` der Seite festnageln).
+- Menü Darstellung → „Darstellung …“ öffnet den Darstellungs-Dialog von Atlas
+  (`atlas-erscheinung-oeffnen`) im aktiven Atlas-Fenster.
+- [ ] Testen: Atlas dunkel → neues Fenster (⌘N, Mail-Fenster) blitzt nicht hell auf;
+      Wechsel hell/dunkel färbt den Rand beim Vergrößern mit; Menüeintrag öffnet den Dialog.

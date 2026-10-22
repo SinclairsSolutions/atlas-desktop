@@ -103,6 +103,16 @@
       ablageAbgemeldet: function () {
         return invoke("ablage_abgemeldet");
       },
+      /**
+       * Darstellung von Atlas hat gewechselt: { dunkel, fenster } — die App färbt
+       * den Hintergrund dieses Fensters passend und startet neue Fenster so.
+       */
+      erscheinungGeaendert: function (z) {
+        return invoke("erscheinung_geaendert", {
+          dunkel: !!(z && z.dunkel),
+          fenster: z && z.fenster ? String(z.fenster).slice(0, 40) : null,
+        }).catch(function () {});
+      },
       /** Bestätigung der Eingangs-Uploads (Dateien aus Dock, Ordner, Menüleiste). */
       dateienErledigt: function (erledigt, fehler, ziel) {
         return invoke("dateien_erledigt", {
@@ -113,6 +123,15 @@
       },
     }),
     enumerable: false,
+  });
+
+  // Darstellung früh melden: Atlas setzt __ATLAS_DARSTELLUNG__ schon im <head>,
+  // vor dem ersten Zeichnen — so passt der Fensterhintergrund, bevor React läuft.
+  document.addEventListener("DOMContentLoaded", function () {
+    var d = window.__ATLAS_DARSTELLUNG__;
+    if (d && typeof d.dunkel === "boolean") {
+      window.__ATLAS_DESKTOP__.erscheinungGeaendert({ dunkel: d.dunkel, fenster: d.art });
+    }
   });
 
   // macOS: Atlas reicht bis unter die Fensterknöpfe (Titelleiste „Overlay“).
