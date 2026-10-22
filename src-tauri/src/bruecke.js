@@ -104,13 +104,16 @@
         return invoke("ablage_abgemeldet");
       },
       /**
-       * Darstellung von Atlas hat gewechselt: { dunkel, fenster } — die App färbt
-       * den Hintergrund dieses Fensters passend und startet neue Fenster so.
+       * Darstellung von Atlas hat gewechselt: { dunkel, fenster, farbe } — die App
+       * färbt den Hintergrund dieses Fensters passend (farbe als #rrggbb, optional)
+       * und startet neue Fenster so.
        */
       erscheinungGeaendert: function (z) {
+        var f = z && typeof z.farbe === "string" ? z.farbe.trim().toLowerCase() : "";
         return invoke("erscheinung_geaendert", {
           dunkel: !!(z && z.dunkel),
           fenster: z && z.fenster ? String(z.fenster).slice(0, 40) : null,
+          farbe: /^#[0-9a-f]{6}$/.test(f) ? f : null,
         }).catch(function () {});
       },
       /** Bestätigung der Eingangs-Uploads (Dateien aus Dock, Ordner, Menüleiste). */
@@ -130,7 +133,11 @@
   document.addEventListener("DOMContentLoaded", function () {
     var d = window.__ATLAS_DARSTELLUNG__;
     if (d && typeof d.dunkel === "boolean") {
-      window.__ATLAS_DESKTOP__.erscheinungGeaendert({ dunkel: d.dunkel, fenster: d.art });
+      window.__ATLAS_DESKTOP__.erscheinungGeaendert({
+        dunkel: d.dunkel,
+        fenster: d.fenster || d.art,
+        farbe: d.farbe,
+      });
     }
   });
 
