@@ -28,16 +28,20 @@
   <string>12.0</string>
   <key>NSHumanReadableCopyright</key>
   <string>© Sinclairs Solutions</string>
-  <!-- Symbol in der Finder-Seitenleiste (Orte): SF Symbol, siehe Apple
-       „Setting the Finder Sidebar Icon“. Ein eigenes Atlas-Zeichen ginge als
-       Custom Symbol (.symbolset im Asset-Katalog der Erweiterung) — dafür
-       fehlt noch eine Vektorfassung des Zeichens. -->
+  <!-- Symbol in der Finder-Seitenleiste (Orte), siehe Apple „Setting the
+       Finder Sidebar Icon“: eigenes SF Symbol „atlas.zeichen“ (vereinfachtes
+       Atlas-Zeichen) aus finder-ablage/Symbole.xcassets, von
+       scripts/finder-ablage-bauen.sh mit actool zu Contents/Resources/Assets.car
+       der Erweiterung kompiliert.
+       RÜCKFALL: Zeigt der Finder kein oder ein leeres Symbol (eigenes Symbol
+       wird nicht geladen), hier wieder das System-Symbol
+       globe.europe.africa.fill eintragen (stand so bis 0.3.2). -->
   <key>CFBundleIcons</key>
   <dict>
     <key>CFBundlePrimaryIcon</key>
     <dict>
       <key>CFBundleSymbolName</key>
-      <string>globe.europe.africa.fill</string>
+      <string>atlas.zeichen</string>
     </dict>
   </dict>
   <key>NSExtension</key>

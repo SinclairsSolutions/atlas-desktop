@@ -422,6 +422,17 @@ wie auf dem Mac (`src-tauri/src/ablage/api.rs`).
   Windows-Rechner getestet ist.
 - Seitenleisten-Symbol: SF Symbol `globe.europe.africa.fill`
   (`CFBundleIcons → CFBundlePrimaryIcon → CFBundleSymbolName` in
-  `finder-ablage/Info.plist`). Eigenes Atlas-Zeichen: braucht eine Vektorfassung
-  (SVG/PDF) des Zeichens, daraus ein Custom Symbol (.symbolset) und einen
-  Asset-Katalog der Erweiterung (actool im Workflow).
+  `finder-ablage/Info.plist`).
+
+### Nach 0.3.2: eigenes Seitenleisten-Symbol
+
+- `CFBundleSymbolName` = `atlas.zeichen`: eigenes SF Symbol (vereinfachtes
+  Atlas-Zeichen, Nadel und Ring verstärkt) in
+  `finder-ablage/Symbole.xcassets/atlas.zeichen.symbolset` (Vorlage v.3.0,
+  Ultralight/Regular/Black-S mit demselben Pfad). `finder-ablage-bauen.sh`
+  kompiliert den Katalog mit actool nach `AtlasAblage.appex/Contents/Resources/Assets.car`;
+  der Workflow prüft mit `assetutil --info`, dass das Symbol darin steckt.
+- [ ] Testen: Ablage einschalten → Finder-Seitenleiste (Orte) zeigt das Atlas-Zeichen,
+      hell und dunkel, auch nach Neustart des Finders.
+- Rückfall, falls der Finder es nicht lädt (leeres/fehlendes Symbol):
+  `CFBundleSymbolName` wieder auf `globe.europe.africa.fill` setzen.
