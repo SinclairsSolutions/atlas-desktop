@@ -48,6 +48,7 @@ pub fn erstellen<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &MenuItem::with_id(app, "fenster-mail", t("Mail in eigenem Fenster", "Mail in Own Window"), true, Some("CmdOrCtrl+Shift+M"))?,
             &MenuItem::with_id(app, "fenster-passwoerter", t("Passwörter in eigenem Fenster", "Passwords in Own Window"), true, Some("CmdOrCtrl+Shift+P"))?,
             &MenuItem::with_id(app, "fenster-kommunikation", t("Kommunikation in eigenem Fenster", "Messages in Own Window"), true, Some("CmdOrCtrl+Shift+K"))?,
+            &MenuItem::with_id(app, "hauptfenster-kuerzel", t("Hauptfenster", "Main Window"), true, Some("CmdOrCtrl+Shift+A"))?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "belege-eingang", t("Belege in den Eingang …", "Receipts to Inbox …"), true, Some("CmdOrCtrl+Shift+U"))?,
             &MenuItem::with_id(app, "bildschirmfoto", t("Bildschirmfoto in den Eingang", "Screenshot to Inbox"), true, Some("CmdOrCtrl+Shift+6"))?,
@@ -231,7 +232,9 @@ pub fn ereignis(app: &AppHandle, event: MenuEvent) {
         fenster::weiteres_fenster(app, url);
         return;
     }
-    if id == "hauptfenster" {
+    // ⌘⇧A (Ablage, neben Mail/Passwörter/Kommunikation) und ⌘1 (Fenster):
+    // Hauptfenster nach vorne holen bzw. wieder öffnen.
+    if id == "hauptfenster" || id == "hauptfenster-kuerzel" {
         fenster::hauptfenster_zeigen(app);
         return;
     }
