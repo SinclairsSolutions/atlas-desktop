@@ -95,6 +95,7 @@ pub fn run() {
             werkzeuge::bildschirmfoto,
             safari::safari_erweiterung_status,
             safari::safari_erweiterung_oeffnen,
+            safari::chrome_erweiterung_oeffnen,
             mikrofon::mikrofon_erlaubnis,
             mikrofon::mikrofon_einstellungen,
             ablage::ablage_status,

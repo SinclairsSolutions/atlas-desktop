@@ -30,6 +30,7 @@ fn main() {
             "nach_updates_suchen",
             "safari_erweiterung_status",
             "safari_erweiterung_oeffnen",
+            "chrome_erweiterung_oeffnen",
             "mikrofon_erlaubnis",
             "mikrofon_einstellungen",
             "ablage_status",

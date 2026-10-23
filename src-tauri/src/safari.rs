@@ -145,3 +145,32 @@ fn einstellungen_anfordern() -> tokio::sync::oneshot::Receiver<bool> {
     }
     rx
 }
+
+/// Chrome Web Store: „Atlas Passwort-Safe“ (freigegeben, nicht gelistet —
+/// nur über diesen Link auffindbar). Gilt für Chrome, Edge, Brave und Arc.
+pub const CHROME_STORE_URL: &str =
+    "https://chromewebstore.google.com/detail/atlas-passwort-safe/dcmfbjhngdfomcfiackbpojjkfnlogke";
+
+/// Öffnet den Store-Eintrag der Erweiterung — unter macOS gezielt im ersten
+/// installierten Chromium-Browser (Safari kann aus dem Chrome Web Store nicht
+/// installieren), sonst im Standardbrowser. Gibt den Namen des Browsers zurück.
+#[tauri::command]
+pub fn chrome_erweiterung_oeffnen(app: tauri::AppHandle) -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    for browser in ["Google Chrome", "Microsoft Edge", "Brave Browser", "Arc"] {
+        let ok = std::process::Command::new("/usr/bin/open")
+            .args(["-a", browser, CHROME_STORE_URL])
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if ok {
+            return Ok(browser.to_string());
+        }
+    }
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_url(CHROME_STORE_URL, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    Ok(String::new())
+}

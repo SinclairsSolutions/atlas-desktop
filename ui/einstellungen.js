@@ -183,6 +183,15 @@
       .catch(function (e) { melden(String(e), true); })
       .then(function () { setTimeout(safariStand, 1500); });
   };
+  $("chromeOeffnen").onclick = function () {
+    inv("chrome_erweiterung_oeffnen")
+      .then(function (browser) {
+        melden(browser
+          ? tt("Chrome Web Store in " + browser + " geöffnet", "Chrome Web Store opened in " + browser)
+          : tt("Chrome Web Store im Standardbrowser geöffnet", "Chrome Web Store opened in your default browser"));
+      })
+      .catch(function (e) { melden(String(e), true); });
+  };
   // Nach dem Einschalten in Safari zurück in die App: Stand neu holen.
   window.addEventListener("focus", function () { if (stand && stand.plattform === "macos") safariStand(); });
 
@@ -307,12 +316,9 @@
   }
   laden().then(function () {
     ablageZeigenStand();
-    // Die Safari-Erweiterung gibt es nur auf dem Mac.
+    // Die Safari-Erweiterung gibt es nur auf dem Mac; Chrome/Edge überall.
     if (stand.plattform === "macos") safariStand();
-    else {
-      sichtbar($("reiterPasswoerter"), false);
-      if (document.querySelector('.seite.an[data-seite="passwoerter"]')) reiterZeigen("allgemein");
-    }
+    else sichtbar($("karteSafari"), false);
   });
   // Warteschlange und Workspace-Liste aktuell halten (Atlas meldet sie nach der Anmeldung).
   setInterval(function () {

@@ -27,6 +27,7 @@
     "allow-nach-updates-suchen",
     "allow-safari-erweiterung-status",
     "allow-safari-erweiterung-oeffnen",
+    "allow-chrome-erweiterung-oeffnen",
     "allow-ablage-info",
     "allow-ablage-schalten",
     "allow-ablage-zeigen"
