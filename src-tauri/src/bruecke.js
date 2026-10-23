@@ -405,6 +405,10 @@
       })
       .catch(function (e) {
         console.warn("[Atlas Desktop] Download fehlgeschlagen", e);
+        // Sichtbar machen statt still nichts zu tun.
+        try {
+          window.alert("Download fehlgeschlagen: " + ((e && e.message) || e));
+        } catch (_) {}
       });
   }
   // Atlas liefert Dateien über eigene Links aus; „dl=1“ heißt „als Download“.
