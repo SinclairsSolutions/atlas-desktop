@@ -116,25 +116,43 @@ fn eigene_titelleiste<'a>(
 
 /// Weiteres Atlas-Fenster (Menü „Neues Fenster“) — z. B. zwei Mandanten nebeneinander.
 pub fn weiteres_fenster(app: &AppHandle, url: Url) {
+    atlas_fenster(app, url, None);
+}
+
+/// Eigenständiges Atlas-Fenster mit eigener WebKit-Konfiguration — und damit
+/// eigener, vollständiger Brücke (IPC). Für ⌘N, „Eigenes Fenster“ aus Atlas
+/// (Mail, Kommunikation …) und Atlas-Links mit Ziel `_blank`.
+fn atlas_fenster(app: &AppHandle, url: Url, groesse: Option<tauri::LogicalSize<f64>>) -> Option<WebviewWindow> {
     // Gesperrt: kein neues Fenster an der Sperre vorbei (⌘N, Menüleiste).
     if crate::sperre::ist_gesperrt(app) {
         crate::sperre::sperren(app);
-        return;
+        return None;
     }
     // Eigene Fenster (Mail, Passwörter) haben keine Seitenleiste — dort bleibt die
     // normale Titelleiste, sonst lägen die Fensterknöpfe über dem Inhalt.
-    let eigenes = url.query().is_some_and(|q| q.split('&').any(|p| p == "fenster=1"));
+    let eigenes = ist_eigenes_fenster(&url);
     let n = app.state::<Zustand>().fenster_zaehler.fetch_add(1, Ordering::Relaxed);
     let label = format!("{NEBEN_PREFIX}{n}");
+    let (breite, hoehe) = groesse
+        .map(|g| (g.width.clamp(720.0, 2400.0), g.height.clamp(480.0, 1600.0)))
+        .unwrap_or((1280.0, 840.0));
     let b = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url))
         .title("Sinclair Atlas")
-        .inner_size(1280.0, 840.0)
+        .inner_size(breite, hoehe)
         .min_inner_size(720.0, 480.0);
     let farbe = crate::erscheinung::hintergrund(app, &label);
     let b = if eigenes { eigene_titelleiste(b, farbe) } else { titelleiste(b, farbe) };
-    if let Err(e) = ausstatten(app, b, label).build() {
-        log::error!("Neues Fenster ließ sich nicht öffnen: {e}");
+    match ausstatten(app, b, label).build() {
+        Ok(w) => Some(w),
+        Err(e) => {
+            log::error!("Neues Fenster ließ sich nicht öffnen: {e}");
+            None
+        }
     }
+}
+
+fn ist_eigenes_fenster(url: &Url) -> bool {
+    url.query().is_some_and(|q| q.split('&').any(|p| p == "fenster=1"))
 }
 
 /// Passwörter-Schnellzugriff aus der Menüleiste (wie Safari): kleines Fenster
@@ -280,6 +298,19 @@ fn ausstatten<'a>(
 }
 
 fn navigation_erlaubt(app: &AppHandle, label: &str, url: &Url) -> bool {
+    // Meldekanal von `bruecke.js`, der ohne IPC funktioniert (siehe dort).
+    if url.scheme() == ziel::SCHEMA && url.host_str() == Some("bruecke") {
+        if url.path() == "/gestoert" {
+            let auf_atlas = app
+                .get_webview_window(label)
+                .and_then(|w| w.url().ok())
+                .is_some_and(|u| ziel::ist_atlas(&u));
+            if auf_atlas {
+                bruecke_gestoert(app, label, url);
+            }
+        }
+        return false;
+    }
     if ziel::ist_atlas(url) || ziel::ist_lokal(url) || ziel::ist_intern(url) {
         return true;
     }
@@ -307,10 +338,55 @@ fn neues_fenster(app: &AppHandle, url: Url, features: NewWindowFeatures) -> NewW
     if crate::sperre::ist_gesperrt(app) {
         return NewWindowResponse::Deny;
     }
-    if ziel::ist_atlas(&url) || ziel::ist_intern(&url) {
-        // In der App öffnen: Atlas schreibt in manche Fenster direkt hinein
-        // (Zweitfenster, TIFF-Ansicht, Bank-Login über about:blank) und braucht
-        // dafür die Verbindung zum öffnenden Fenster.
+    if ziel::ist_atlas(&url) {
+        // Atlas-Seiten (Mail, Kommunikation, Passwörter, Links mit Ziel) bekommen
+        // ein eigenständiges Fenster. NICHT über `NewWindowResponse::Create`:
+        // Unter macOS müsste das neue WKWebView die Konfiguration des öffnenden
+        // Fensters übernehmen — und teilt sich damit dessen
+        // WKUserContentController. Folgen (lokal nachgestellt mit 0.3.6):
+        //  - Die Brücke des neuen Fensters (Handler „ipc“) lässt sich nicht
+        //    anmelden; seine Aufrufe landen beim öffnenden Fenster (Ziehen
+        //    bewegt das falsche Fenster bzw. nichts, Aufrufe hängen).
+        //  - Beim Schließen entfernt wry den Handler „ipc“ — den des
+        //    Hauptfensters. Danach fehlt dort `window.webkit.messageHandlers`
+        //    („Ablage nicht verbunden …“, Eingangs-Bestätigungen gehen verloren),
+        //    auch nach dem Neuladen.
+        // Gleiche Adresse schon offen (Atlas hält je Bereich ein Fenster): nach vorn holen.
+        let schluessel = fensterschluessel(&url);
+        let vorhanden = app
+            .state::<Zustand>()
+            .fenster_ziele
+            .lock()
+            .unwrap()
+            .get(&schluessel)
+            .and_then(|l| app.get_webview_window(l))
+            .filter(|w| w.is_visible().unwrap_or(false));
+        if let Some(w) = vorhanden {
+            let _ = w.unminimize();
+            let _ = w.set_focus();
+            return NewWindowResponse::Deny;
+        }
+        let a = app.clone();
+        let groesse = features.size();
+        // Erst nach dem WebKit-Rückruf bauen (nicht mitten in der Delegate-Methode).
+        let _ = app.run_on_main_thread(move || {
+            if let Some(w) = atlas_fenster(&a, url, groesse) {
+                a.state::<Zustand>()
+                    .fenster_ziele
+                    .lock()
+                    .unwrap()
+                    .insert(schluessel, w.label().to_string());
+            }
+        });
+        return NewWindowResponse::Deny;
+    }
+    if ziel::ist_intern(&url) {
+        // Leere Fenster, Blob/Data (TIFF-Ansicht, PDF-Vorschau, Bank-Login über
+        // about:blank): Atlas schreibt hinein und braucht dafür die Verbindung zum
+        // öffnenden Fenster — hier geht es nur mit der geteilten Konfiguration.
+        // Solche Fenster brauchen selbst keine Brücke; damit beim Schließen nicht
+        // die Brücke des öffnenden Fensters verschwindet, werden sie nur
+        // ausgeblendet (siehe `geteiltes_fenster_schliessen`).
         let n = app.state::<Zustand>().fenster_zaehler.fetch_add(1, Ordering::Relaxed);
         let label = format!("{NEBEN_PREFIX}{n}");
         let b = WebviewWindowBuilder::new(
@@ -322,15 +398,16 @@ fn neues_fenster(app: &AppHandle, url: Url, features: NewWindowFeatures) -> NewW
         .inner_size(1100.0, 800.0)
         .min_inner_size(420.0, 320.0)
         .window_features(features);
-        // „Eigenes Fenster“ aus Atlas (…?fenster=1): gleiche Titelzeile wie aus dem Menü.
-        let eigenes = url.query().is_some_and(|q| q.split('&').any(|p| p == "fenster=1"));
         let farbe = crate::erscheinung::hintergrund(app, &label);
         #[cfg(target_os = "macos")]
-        let b = if eigenes { eigene_titelleiste(b, farbe) } else { b.background_color(farbe) };
+        let b = b.background_color(farbe);
         #[cfg(not(target_os = "macos"))]
-        let b = if eigenes { eigene_titelleiste(b, farbe) } else { b };
-        return match ausstatten(app, b, label).build() {
-            Ok(window) => NewWindowResponse::Create { window },
+        let _ = farbe;
+        return match ausstatten(app, b, label.clone()).build() {
+            Ok(window) => {
+                app.state::<Zustand>().geteilte_fenster.lock().unwrap().insert(label);
+                NewWindowResponse::Create { window }
+            }
             Err(e) => {
                 log::error!("Nebenfenster ließ sich nicht öffnen: {e}");
                 NewWindowResponse::Deny
@@ -343,10 +420,114 @@ fn neues_fenster(app: &AppHandle, url: Url, features: NewWindowFeatures) -> NewW
     NewWindowResponse::Deny
 }
 
+/// Adresse ohne Sprungmarke — gleiche Adresse = gleiches Fenster.
+fn fensterschluessel(url: &Url) -> String {
+    let mut u = url.clone();
+    u.set_fragment(None);
+    u.to_string()
+}
+
+/// Fenster mit geteilter WebKit-Konfiguration (siehe `neues_fenster`) nicht
+/// zerstören, sondern ausblenden und leeren: Beim Zerstören würde wry den
+/// IPC-Handler des öffnenden Fensters mit entfernen. Gibt `true` zurück, wenn
+/// das Schließen damit erledigt ist.
+pub fn geteiltes_fenster_schliessen(w: &tauri::Window) -> bool {
+    if !cfg!(target_os = "macos") {
+        return false;
+    }
+    let app = w.app_handle();
+    if !app.state::<Zustand>().geteilte_fenster.lock().unwrap().contains(w.label()) {
+        return false;
+    }
+    let _ = w.hide();
+    if let Some(wv) = app.get_webview_window(w.label()) {
+        let _ = wv.navigate("about:blank".parse().expect("about:blank"));
+    }
+    true
+}
+
+/// Meldung von `bruecke.js`: In diesem Fenster fehlt die Brücke (IPC). Kommt
+/// ohne IPC an — als Navigation auf `sinclair-atlas://bruecke/gestoert`, die
+/// `navigation_erlaubt` abfängt.
+fn bruecke_gestoert(app: &AppHandle, label: &str, meldung: &Url) {
+    let grund: String = meldung
+        .query_pairs()
+        .find(|(k, _)| k == "grund")
+        .map(|(_, v)| v.chars().take(200).collect())
+        .unwrap_or_default();
+    log::error!("Brücke gestört in Fenster {label}: {grund}");
+    let app = app.clone();
+    let label = label.to_string();
+    // Nicht mitten im Navigations-Rückruf Fenster umbauen.
+    let _ = app.clone().run_on_main_thread(move || bruecke_heilen(&app, &label));
+}
+
+/// Fenster mit gestörter Brücke neu aufbauen (eigene WebKit-Konfiguration,
+/// frische IPC) — je Fenster höchstens alle 10 Minuten, damit nichts kreist.
+fn bruecke_heilen(app: &AppHandle, label: &str) {
+    let Some(w) = app.get_webview_window(label) else { return };
+    let Some(url) = w.url().ok().filter(ziel::ist_atlas) else { return };
+    {
+        let zustand = app.state::<Zustand>();
+        let mut h = zustand.heilung.lock().unwrap();
+        if h.get(label).is_some_and(|t| t.elapsed() < std::time::Duration::from_secs(600)) {
+            log::warn!("Brücke in {label}: schon kürzlich neu aufgebaut — kein weiterer Versuch");
+            return;
+        }
+        h.insert(label.to_string(), Instant::now());
+    }
+    if label == HAUPT {
+        log::warn!("Hauptfenster wird neu aufgebaut (Brücke fehlte)");
+        *app.state::<Zustand>().neuaufbau.lock().unwrap() = Some(url);
+        // Weiter in `nach_zerstoerung`, sobald das Fenster weg ist (Label frei).
+        let _ = w.destroy();
+        return;
+    }
+    let groesse = w
+        .inner_size()
+        .ok()
+        .map(|g| g.to_logical::<f64>(w.scale_factor().unwrap_or(1.0)));
+    let lage = w.outer_position().ok();
+    if let Some(neu) = atlas_fenster(app, url, groesse) {
+        if let Some(p) = lage {
+            let _ = neu.set_position(p);
+        }
+        let _ = w.close();
+    }
+}
+
+/// Ein Fenster ist zerstört. War es das Hauptfenster im Neuaufbau, gleich wieder
+/// bauen und die Seite von vorher laden.
+pub fn nach_zerstoerung(app: &AppHandle, label: &str) {
+    app.state::<Zustand>().geteilte_fenster.lock().unwrap().remove(label);
+    if label != HAUPT {
+        return;
+    }
+    let Some(url) = app.state::<Zustand>().neuaufbau.lock().unwrap().take() else { return };
+    match hauptfenster_bauen(app) {
+        Ok(w) => {
+            let _ = w.show();
+            let _ = w.set_focus();
+            laden(app, url);
+        }
+        Err(e) => log::error!("Hauptfenster ließ sich nicht neu aufbauen: {e}"),
+    }
+}
+
+/// Läuft gerade ein Neuaufbau des Hauptfensters? (Dann die App nicht beenden,
+/// nur weil kurz kein Fenster offen ist.)
+pub fn neuaufbau_laeuft(app: &AppHandle) -> bool {
+    app.state::<Zustand>().neuaufbau.lock().unwrap().is_some()
+}
+
 fn seite_geladen(app: &AppHandle, w: WebviewWindow, p: PageLoadPayload<'_>) {
     let url = p.url().clone();
     match p.event() {
         PageLoadEvent::Started => {
+            if w.label() == HAUPT {
+                // Neue Seite: Atlas meldet erst wieder, wenn es Dateien annimmt.
+                crate::eingang::seite_wechselt(app);
+            }
             let web = matches!(url.scheme(), "http" | "https");
             let fremd = (web && !ziel::ist_atlas(&url) && !ziel::ist_lokal(&url))
                 // Blob-Seite eines fremden Ursprungs (aus einem iframe heraus).

@@ -29,4 +29,15 @@ pub struct Zustand {
     pub downloads: Mutex<std::collections::HashMap<String, std::path::PathBuf>>,
     /// Zoomstufe je Fensterlabel (1.0 = 100 %).
     pub zoom: Mutex<std::collections::HashMap<String, f64>>,
+    /// Fenster, die macOS mit der WebKit-Konfiguration des öffnenden Fensters
+    /// anlegen musste (leere Fenster, Blob-Ansichten). Sie werden beim Schließen
+    /// nur ausgeblendet — siehe `fenster::geteiltes_fenster_schliessen`.
+    pub geteilte_fenster: Mutex<std::collections::HashSet<String>>,
+    /// Aus Atlas geöffnete Adresse → Fensterlabel (gleiche Adresse holt das
+    /// vorhandene Fenster nach vorn, wie benannte Fenster im Browser).
+    pub fenster_ziele: Mutex<std::collections::HashMap<String, String>>,
+    /// Letzter Neuaufbau je Fenster wegen gestörter Brücke.
+    pub heilung: Mutex<std::collections::HashMap<String, Instant>>,
+    /// Hauptfenster wird gerade neu aufgebaut — danach diese Adresse laden.
+    pub neuaufbau: Mutex<Option<Url>>,
 }

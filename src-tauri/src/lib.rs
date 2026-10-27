@@ -77,6 +77,7 @@ pub fn run() {
             downloads::datei_speichern,
             downloads::im_finder_zeigen,
             eingang::dateien_erledigt,
+            eingang::eingang_bereit,
             importordner::import_ordner_setzen,
             werkzeuge::import_ordner_anlegen,
             werkzeuge::nach_updates_suchen,
@@ -131,6 +132,7 @@ pub fn run() {
                         .permission("allow-drucken")
                         .permission("allow-datei-speichern")
                         .permission("allow-dateien-erledigt")
+                        .permission("allow-eingang-bereit")
                         .permission("allow-import-ordner-setzen")
                         .permission("allow-touch-id-pruefen")
                         .permission("allow-geraet-geheimnis")
@@ -183,6 +185,14 @@ pub fn run() {
                 api.prevent_close();
                 let _ = window.hide();
             }
+            // macOS: Fenster mit geteilter WebKit-Konfiguration nur ausblenden,
+            // sonst verliert das öffnende Fenster seine Brücke.
+            WindowEvent::CloseRequested { api, .. } if fenster::geteiltes_fenster_schliessen(window) => {
+                api.prevent_close();
+            }
+            WindowEvent::Destroyed => {
+                fenster::nach_zerstoerung(window.app_handle(), window.label());
+            }
             WindowEvent::Focused(fokus) => {
                 sperre::fokus(window.app_handle(), window.label(), *fokus);
                 if *fokus && window.label() == fenster::HAUPT {
@@ -205,6 +215,13 @@ pub fn run() {
             #[cfg(any(target_os = "macos", target_os = "ios"))]
             if let RunEvent::Opened { urls } = &event {
                 eingang::geoeffnet(app, urls);
+            }
+            // Neuaufbau des Hauptfensters (gestörte Brücke): kurz ohne Fenster —
+            // nicht beenden.
+            if let RunEvent::ExitRequested { code: None, api, .. } = &event {
+                if fenster::neuaufbau_laeuft(app) {
+                    api.prevent_exit();
+                }
             }
             let _ = (app, event);
         });

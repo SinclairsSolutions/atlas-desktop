@@ -12,6 +12,7 @@ fn main() {
             "datei_speichern",
             "im_finder_zeigen",
             "dateien_erledigt",
+            "eingang_bereit",
             "touch_id_pruefen",
             "entsperren",
             "geraet_geheimnis",

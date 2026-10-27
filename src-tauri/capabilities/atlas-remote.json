@@ -21,6 +21,7 @@
     "allow-datei-speichern",
     "allow-im-finder-zeigen",
     "allow-dateien-erledigt",
+    "allow-eingang-bereit",
     "allow-import-ordner-setzen",
     "allow-touch-id-pruefen",
     "core:window:allow-start-dragging",

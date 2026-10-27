@@ -24,10 +24,66 @@
 
   if (window.__ATLAS_DESKTOP__ || !istAtlas(location.href)) return;
 
+  // ---------------------------------------------------------------------------
+  // Brücke (IPC) und Selbstheilung
+  // ---------------------------------------------------------------------------
+  // macOS: Tauri schickt Aufrufe von Atlas (https) über
+  // window.webkit.messageHandlers.ipc. Fehlt der Handler, scheitert jeder
+  // Aufruf mit „undefined is not an object (evaluating
+  // 'window.webkit.messageHandlers')“ — oder hängt beim ersten Mal still.
+  // Dann einmal sichtbar melden und der App Bescheid geben, damit sie das
+  // Fenster neu aufbaut. Der Meldeweg braucht keine IPC: ein unsichtbarer
+  // Frame auf „<schema>://bruecke/gestoert“, den die App abfängt.
+  var GESTOERT_TEXT = /^en/i.test(navigator.language || "")
+    ? "Connection to the Atlas app was interrupted. The app is restoring it — if this keeps happening, quit Atlas (⌘Q) and reopen it."
+    : "Verbindung zur Atlas-App unterbrochen. Die App stellt sie wieder her — falls das wiederkommt, Atlas beenden (⌘Q) und neu öffnen.";
+  var gestoert = false;
+  function ipcFehlt() {
+    if ("__PLATTFORM__" !== "macos") return false;
+    var w = window.webkit;
+    return !(w && w.messageHandlers && w.messageHandlers.ipc);
+  }
+  function istIpcFehler(e) {
+    var m = String((e && e.message) || e || "");
+    return /messageHandlers|window\.ipc|__TAURI_INTERNALS__|keine Brücke/.test(m);
+  }
+  function brueckeGestoert(grund) {
+    if (gestoert) return;
+    gestoert = true;
+    console.error("[Atlas Desktop] Brücke gestört:", grund);
+    try {
+      zeigen(GESTOERT_TEXT, 15000);
+    } catch (_) {}
+    try {
+      var f = document.createElement("iframe");
+      f.style.display = "none";
+      f.src = "__SCHEMA__://bruecke/gestoert?grund=" + encodeURIComponent(String(grund || "").slice(0, 200));
+      (document.body || document.documentElement).appendChild(f);
+      setTimeout(function () {
+        f.remove();
+      }, 3000);
+    } catch (_) {}
+  }
   function invoke(befehl, args) {
     var i = window.__TAURI_INTERNALS__;
-    if (!i || typeof i.invoke !== "function") return Promise.reject(new Error("keine Brücke"));
-    return i.invoke(befehl, args || {});
+    if (!i || typeof i.invoke !== "function" || ipcFehlt()) {
+      var fehler = new Error("Verbindung zur Atlas-App unterbrochen (keine Brücke in diesem Fenster)");
+      brueckeGestoert(!i ? "keine __TAURI_INTERNALS__" : "window.webkit.messageHandlers.ipc fehlt");
+      return Promise.reject(fehler);
+    }
+    var p;
+    try {
+      p = i.invoke(befehl, args || {});
+    } catch (e) {
+      p = Promise.reject(e);
+    }
+    return p.catch(function (e) {
+      if (istIpcFehler(e)) brueckeGestoert(String((e && e.message) || e));
+      throw e;
+    });
+  }
+  function brueckePruefen() {
+    if (ipcFehlt()) brueckeGestoert("window.webkit.messageHandlers.ipc fehlt (beim Laden)");
   }
 
   Object.defineProperty(window, "__ATLAS_DESKTOP__", {
@@ -116,17 +172,26 @@
           farbe: /^#[0-9a-f]{6}$/.test(f) ? f : null,
         }).catch(function () {});
       },
-      /** Bestätigung der Eingangs-Uploads (Dateien aus Dock, Ordner, Menüleiste). */
+      /**
+       * Bestätigung der Eingangs-Uploads (Dateien aus Dock, Ordner, Menüleiste).
+       * Ist die Brücke gestört, wird das Versprechen abgelehnt — Atlas zeigt dann
+       * seinen Hinweis; die App reicht die Datei höchstens noch einmal weiter.
+       */
       dateienErledigt: function (erledigt, fehler, ziel) {
         return invoke("dateien_erledigt", {
           erledigt: erledigt || [],
           fehler: fehler || [],
           ziel: ziel ? String(ziel) : null,
-        }).catch(function () {});
+        }).catch(function (e) {
+          if (gestoert || istIpcFehler(e)) throw e;
+        });
       },
     }),
     enumerable: false,
   });
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", brueckePruefen);
+  else brueckePruefen();
 
   // Darstellung früh melden: Atlas setzt __ATLAS_DARSTELLUNG__ schon im <head>,
   // vor dem ersten Zeichnen — so passt der Fensterhintergrund, bevor React läuft.
@@ -188,6 +253,42 @@
       window.dispatchEvent(new CustomEvent("atlas-desktop-dateien", { detail: { dateien: dateien || [] } }));
     },
   });
+  // Die App übergibt erst, wenn Atlas zuhört (angemeldet, Seite geladen) —
+  // sonst gingen Dateien ins Leere und zählten trotzdem als Übergabe.
+  (function () {
+    var TYP = "atlas-desktop-dateien";
+    var zuhoerer = new Set();
+    var gemeldet = null;
+    var zeitgeber = 0;
+    function melden() {
+      clearTimeout(zeitgeber);
+      zeitgeber = setTimeout(function () {
+        var bereit = zuhoerer.size > 0;
+        if (bereit === gemeldet) return;
+        gemeldet = bereit;
+        invoke("eingang_bereit", { bereit: bereit }).catch(function () {
+          gemeldet = null;
+        });
+      }, 50);
+    }
+    var hinzu = window.addEventListener;
+    var weg = window.removeEventListener;
+    window.addEventListener = function (typ, fn) {
+      var r = hinzu.apply(this, arguments);
+      if (typ === TYP && fn && (this === window || this == null)) {
+        zuhoerer.add(fn);
+        melden();
+      }
+      return r;
+    };
+    window.removeEventListener = function (typ, fn) {
+      var r = weg.apply(this, arguments);
+      if (typ === TYP && fn && (this === window || this == null) && zuhoerer.delete(fn)) {
+        melden();
+      }
+      return r;
+    };
+  })();
   // Schnellerfassung: Text als Aufgabe oder Notiz.
   Object.defineProperty(window, "__atlasDesktopNotiz", {
     value: function (notiz) {
