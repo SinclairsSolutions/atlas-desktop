@@ -313,5 +313,5 @@ pub fn eigenes_fenster(app: &AppHandle, id: &str) {
     url.set_path(&pfad);
     url.set_query(Some("fenster=1"));
     url.set_fragment(None);
-    fenster::weiteres_fenster(app, url);
+    fenster::bereichsfenster(app, url);
 }

@@ -353,17 +353,7 @@ fn neues_fenster(app: &AppHandle, url: Url, features: NewWindowFeatures) -> NewW
         //    auch nach dem Neuladen.
         // Gleiche Adresse schon offen (Atlas hält je Bereich ein Fenster): nach vorn holen.
         let schluessel = fensterschluessel(&url);
-        let vorhanden = app
-            .state::<Zustand>()
-            .fenster_ziele
-            .lock()
-            .unwrap()
-            .get(&schluessel)
-            .and_then(|l| app.get_webview_window(l))
-            .filter(|w| w.is_visible().unwrap_or(false));
-        if let Some(w) = vorhanden {
-            let _ = w.unminimize();
-            let _ = w.set_focus();
+        if vorhandenes_nach_vorn(app, &schluessel) {
             return NewWindowResponse::Deny;
         }
         let a = app.clone();
@@ -371,11 +361,7 @@ fn neues_fenster(app: &AppHandle, url: Url, features: NewWindowFeatures) -> NewW
         // Erst nach dem WebKit-Rückruf bauen (nicht mitten in der Delegate-Methode).
         let _ = app.run_on_main_thread(move || {
             if let Some(w) = atlas_fenster(&a, url, groesse) {
-                a.state::<Zustand>()
-                    .fenster_ziele
-                    .lock()
-                    .unwrap()
-                    .insert(schluessel, w.label().to_string());
+                ziel_merken(&a, schluessel, &w);
             }
         });
         return NewWindowResponse::Deny;
@@ -418,6 +404,46 @@ fn neues_fenster(app: &AppHandle, url: Url, features: NewWindowFeatures) -> NewW
         extern_oeffnen(app, &url);
     }
     NewWindowResponse::Deny
+}
+
+/// Eigenes Fenster eines Bereichs (Menü/Kürzel ⇧⌘M, ⇧⌘K, ⇧⌘P, Menüleiste):
+/// Ist es schon offen — auch wenn Atlas es per `window.open` geöffnet hat —,
+/// kommt es nach vorn, sonst entsteht es neu. Vorher entstand bei jedem Druck
+/// ein weiteres Fenster genau über dem vorhandenen (gleiche Größe und Lage),
+/// sodass das Kürzel scheinbar nichts tat.
+pub fn bereichsfenster(app: &AppHandle, url: Url) {
+    let schluessel = fensterschluessel(&url);
+    if vorhandenes_nach_vorn(app, &schluessel) {
+        return;
+    }
+    if let Some(w) = atlas_fenster(app, url, None) {
+        ziel_merken(app, schluessel, &w);
+    }
+}
+
+/// Fenster zu dieser Adresse (ohne Sprungmarke) nach vorn holen, falls offen.
+fn vorhandenes_nach_vorn(app: &AppHandle, schluessel: &str) -> bool {
+    let vorhanden = app
+        .state::<Zustand>()
+        .fenster_ziele
+        .lock()
+        .unwrap()
+        .get(schluessel)
+        .and_then(|l| app.get_webview_window(l))
+        .filter(|w| w.is_visible().unwrap_or(false) || w.is_minimized().unwrap_or(false));
+    let Some(w) = vorhanden else { return false };
+    let _ = w.unminimize();
+    let _ = w.show();
+    let _ = w.set_focus();
+    true
+}
+
+fn ziel_merken(app: &AppHandle, schluessel: String, w: &WebviewWindow) {
+    app.state::<Zustand>()
+        .fenster_ziele
+        .lock()
+        .unwrap()
+        .insert(schluessel, w.label().to_string());
 }
 
 /// Adresse ohne Sprungmarke — gleiche Adresse = gleiches Fenster.
