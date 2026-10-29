@@ -286,6 +286,32 @@
     setInterval(streifenAnpassen, 1500);
   }
 
+  // Oberer Rand immer ziehbar: Auch wo Atlas keine Ziehfläche markiert (Dialoge,
+  // Vollbildansichten, Seiten ohne Kopfleiste), verschiebt ein Klick in die
+  // obersten 36 px das Fenster — außer auf Knöpfen, Links und Eingabefeldern.
+  // Doppelklick maximiert wie in macOS üblich.
+  if ("__PLATTFORM__" === "macos") {
+    var BEDIENBAR =
+      'a,button,input,textarea,select,option,label,summary,video,audio,[role="button"],[role="link"],[role="menuitem"],[role="tab"],[role="checkbox"],[role="switch"],[role="slider"],[role="option"],[role="combobox"],[contenteditable=""],[contenteditable="true"],[data-tauri-drag-region="false"]';
+    document.addEventListener(
+      "mousedown",
+      function (e) {
+        if (e.button !== 0 || e.clientY > 36 || e.defaultPrevented) return;
+        var el = e.target instanceof Element ? e.target : null;
+        if (!el) return;
+        // Markierte Flächen übernimmt Tauri selbst.
+        if (el.closest("[data-tauri-drag-region]") && !el.closest('[data-tauri-drag-region="false"]')) return;
+        if (el.closest(BEDIENBAR)) return;
+        if (window.getComputedStyle(el).cursor === "pointer") return;
+        e.preventDefault();
+        invoke(e.detail === 2 ? "plugin:window|internal_toggle_maximize" : "plugin:window|start_dragging").catch(
+          function () {},
+        );
+      },
+      true,
+    );
+  }
+
   // Eingang: Die App übergibt Dateien (Dock, überwachter Ordner, Import-Ordner,
   // Menüleiste, Bildschirmfoto). Atlas hört auf „atlas-desktop-dateien“, lädt mit
   // der Anmeldung der Person hoch und bestätigt über dateienErledigt.
@@ -333,6 +359,29 @@
       return r;
     };
   })();
+  // ⇧⌘K/⇧⌘M/⇧⌘P: Die Menü-Kürzel kamen aus der Webansicht oft nicht beim
+  // Mac-Menü an (das Menü per Klick ging). Darum fängt jedes Atlas-Fenster sie
+  // selbst ab und ruft die App direkt; preventDefault verhindert das doppelte
+  // Auslösen über das Menü.
+  document.addEventListener(
+    "keydown",
+    function (e) {
+      if (!e.metaKey || !e.shiftKey || e.altKey || e.ctrlKey || e.repeat) return;
+      var id =
+        e.code === "KeyK"
+          ? "fenster-kommunikation"
+          : e.code === "KeyM"
+            ? "fenster-mail"
+            : e.code === "KeyP"
+              ? "fenster-passwoerter"
+              : null;
+      if (!id) return;
+      e.preventDefault();
+      e.stopPropagation();
+      invoke("bereich_oeffnen", { id: id }).catch(function () {});
+    },
+    true,
+  );
   // App-Sperre: Die App meldet Sperren und Entsperren an alle Atlas-Fenster.
   Object.defineProperty(window, "__atlasDesktopSperre", {
     value: function (gesperrt) {

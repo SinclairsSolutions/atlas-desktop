@@ -69,6 +69,7 @@ pub fn run() {
         .manage(erscheinung::Erscheinung::default())
         .invoke_handler(tauri::generate_handler![
             bruecke::mitteilung,
+            menue::bereich_oeffnen,
             bruecke::mitteilungen_erlauben,
             bruecke::kennzahl,
             bruecke::extern_oeffnen,

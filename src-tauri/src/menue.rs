@@ -293,6 +293,19 @@ pub fn ereignis(app: &AppHandle, event: MenuEvent) {
 }
 
 /// Mail, Passwörter oder Kommunikation in einem eigenen Fenster (ohne Seitenleiste).
+/// Bereichsfenster aus der Seite heraus (Tastenkürzel, abgefangen in bruecke.js).
+#[tauri::command]
+pub async fn bereich_oeffnen(app: AppHandle, id: String) -> Result<(), String> {
+    match id.as_str() {
+        "fenster-mail" | "fenster-passwoerter" | "fenster-kommunikation" => {
+            log::info!("Kürzel aus der Seite: {id}");
+            eigenes_fenster(&app, &id);
+            Ok(())
+        }
+        _ => Err("Unbekannter Bereich".into()),
+    }
+}
+
 pub fn eigenes_fenster(app: &AppHandle, id: &str) {
     // Workspace des aktiven Fensters, sonst die persönliche Sicht (Universe).
     let basis = fenster::aktives_fenster(app)

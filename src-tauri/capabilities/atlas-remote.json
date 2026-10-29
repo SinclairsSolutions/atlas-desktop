@@ -27,6 +27,7 @@
     "allow-biometrie-pruefen",
     "allow-biometrie-verfuegbar",
     "allow-sperre-status",
+    "allow-bereich-oeffnen",
     "allow-sperre-anfordern",
     "allow-sperre-ohne-sitzung",
     "allow-sperre-einstellen",
