@@ -28,9 +28,24 @@ fi
 rm -rf "$ZIEL"
 mkdir -p "$ZIEL"
 cp "$QUELLE/manifest.json" "$QUELLE/popup.html" "$QUELLE/popup.css" "$QUELLE/icon-mask.png" "$ZIEL/"
+# Seit 0.2.3 Teil des Pakets (Chrome: Zwischenablage leeren, Farbschema).
+# Safari kennt chrome.offscreen nicht — die Datei bleibt dort unbenutzt.
+[ -f "$QUELLE/offscreen.html" ] && cp "$QUELLE/offscreen.html" "$ZIEL/"
 cp -R "$QUELLE/dist" "$ZIEL/dist"
 cp -R "$QUELLE/icons" "$ZIEL/icons"
 find "$ZIEL" -name .DS_Store -delete
+
+# Safari unterstützt das Recht „offscreen“ nicht. Der Hintergrund-Code prüft
+# chrome.offscreen vor jeder Nutzung, das Recht ist dort also wirkungslos —
+# entfernen, damit safari-web-extension-converter (bauen.yml) und Safari nicht
+# über ein unbekanntes Recht stolpern.
+bun -e '
+  const fs = require("fs");
+  const p = process.argv[1];
+  const m = JSON.parse(fs.readFileSync(p, "utf8"));
+  if (Array.isArray(m.permissions)) m.permissions = m.permissions.filter((r) => r !== "offscreen");
+  fs.writeFileSync(p, JSON.stringify(m, null, 2) + "\n");
+' "$ZIEL/manifest.json"
 
 # Herkunft festhalten (welcher Atlas-Stand steckt drin?).
 STAND="$(git -C "$ATLAS" rev-parse --short HEAD 2>/dev/null || echo unbekannt)"
