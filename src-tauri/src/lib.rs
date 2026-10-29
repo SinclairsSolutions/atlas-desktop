@@ -82,6 +82,12 @@ pub fn run() {
             werkzeuge::import_ordner_anlegen,
             werkzeuge::nach_updates_suchen,
             sperre::touch_id_pruefen,
+            sperre::biometrie_pruefen,
+            sperre::biometrie_verfuegbar,
+            sperre::sperre_status,
+            sperre::sperre_anfordern,
+            sperre::sperre_ohne_sitzung,
+            sperre::sperre_einstellen,
             sperre::entsperren,
             sperre::geraet_geheimnis,
             werkzeuge::einstellungen_lesen,
@@ -135,6 +141,13 @@ pub fn run() {
                         .permission("allow-eingang-bereit")
                         .permission("allow-import-ordner-setzen")
                         .permission("allow-touch-id-pruefen")
+                        .permission("allow-biometrie-pruefen")
+                        .permission("allow-biometrie-verfuegbar")
+                        .permission("allow-sperre-status")
+                        .permission("allow-sperre-anfordern")
+                        .permission("allow-sperre-ohne-sitzung")
+                        .permission("allow-sperre-einstellen")
+                        .permission("allow-entsperren")
                         .permission("allow-geraet-geheimnis")
                         .permission("allow-mikrofon-erlaubnis")
                         .permission("allow-mikrofon-einstellungen")
@@ -194,7 +207,7 @@ pub fn run() {
                 fenster::nach_zerstoerung(window.app_handle(), window.label());
             }
             WindowEvent::Focused(fokus) => {
-                sperre::fokus(window.app_handle(), window.label(), *fokus);
+                sperre::fokus(window.app_handle(), *fokus);
                 if *fokus && window.label() == fenster::HAUPT {
                     fenster::nach_anmeldung_neu_laden(window.app_handle());
                     // Seite geladen und im Vordergrund: wartende Belege übergeben.

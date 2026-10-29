@@ -50,15 +50,15 @@ pub fn einstellungen_oeffnen(app: &AppHandle) {
     // Gesperrt: Einstellungen erst nach dem Entsperren (sonst ließe sich dort
     // die Sperre abschalten).
     if sperre::ist_gesperrt(app) {
-        sperre::sperren(app);
+        sperre::zur_sperre(app);
         return;
     }
     lokales_fenster(app, EINSTELLUNGEN, "einstellungen.html", &t("Einstellungen", "Settings"), 820.0, 640.0, Some((680.0, 500.0)));
 }
 
 pub fn notiz_oeffnen(app: &AppHandle) {
-    if app.state::<sperre::Zustand>().gesperrt.load(std::sync::atomic::Ordering::SeqCst) {
-        sperre::sperren(app);
+    if sperre::ist_gesperrt(app) {
+        sperre::zur_sperre(app);
         return;
     }
     lokales_fenster(app, NOTIZ, "notiz.html", &t("Schnellerfassung", "Quick Capture"), 460.0, 300.0, None);
@@ -108,19 +108,7 @@ pub async fn einstellungen_setzen(app: AppHandle, neu: Einstellungen) -> Result<
     }
     // Touch-ID-Sperre ein- und ausschalten bzw. lockern nur nach erfolgreicher
     // Prüfung — sonst ließe sich die Sperre ohne Touch ID abstellen.
-    let einschalten = neu.touch_id_sperre && !alt.touch_id_sperre;
-    let lockern = alt.touch_id_sperre
-        && (!neu.touch_id_sperre
-            || (alt.sperre_nach_minuten > 0
-                && (neu.sperre_nach_minuten == 0 || neu.sperre_nach_minuten > alt.sperre_nach_minuten)));
-    let grund = if einschalten {
-        Some(t("Touch-ID-Sperre einschalten", "Turn on Touch ID lock"))
-    } else if lockern {
-        Some(t("Touch-ID-Sperre ändern", "Change Touch ID lock"))
-    } else {
-        None
-    };
-    if let Some(g) = grund {
+    if let Some(g) = sperre::bestaetigung_noetig(&alt, &neu) {
         if !sperre::pruefen(g).await {
             return Err(t("Touch ID wurde nicht bestätigt.", "Touch ID was not confirmed.").into());
         }

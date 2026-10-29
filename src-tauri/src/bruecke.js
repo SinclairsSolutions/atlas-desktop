@@ -94,7 +94,7 @@
       // "__SCHEMA__://open/workspaces/<id>/communication/mail"
       schema: "__SCHEMA__",
       // Fähigkeiten, nach denen Atlas fragen kann.
-      kann: Object.freeze({ eingang: true, notiz: true, touchId: "__PLATTFORM__" === "macos", fensterZiehen: true, importOrdner: true, ablage: true }),
+      kann: Object.freeze({ eingang: true, notiz: true, touchId: "__PLATTFORM__" === "macos", fensterZiehen: true, importOrdner: true, ablage: true, sperre: "__PLATTFORM__" === "macos" }),
       /** Gerade gespeicherte Datei im Finder zeigen (nur nach Namen). */
       imFinderZeigen: function (name) {
         return invoke("im_finder_zeigen", { name: String(name || "") });
@@ -105,6 +105,50 @@
           return false;
         });
       },
+      /**
+       * Touch ID bzw. Mac-Passwort (LocalAuthentication, deviceOwnerAuthentication).
+       * pruefen(grund) → Promise<"ok" | "abgebrochen" | "nicht_verfuegbar">
+       * verfuegbar()   → Promise<{ verfuegbar: boolean, touchId: boolean }>
+       */
+      biometrie: Object.freeze({
+        pruefen: function (grund) {
+          return invoke("biometrie_pruefen", { grund: String(grund || "") }).catch(function () {
+            return "nicht_verfuegbar";
+          });
+        },
+        verfuegbar: function () {
+          return invoke("biometrie_verfuegbar").catch(function () {
+            return { verfuegbar: false, touchId: false };
+          });
+        },
+      }),
+      /**
+       * App-Sperre (alle Fenster zugleich, Zustand in der App). Änderungen
+       * meldet die App als Ereignis „atlas-desktop-sperre“ ({ gesperrt }).
+       * status() → { aktiv, gesperrt, nachMinuten (0 = nur beim Start), sofort, verfuegbar, touchId }
+       * entsperren() → "ok" | "abgebrochen" | "nicht_verfuegbar" | "laeuft"
+       */
+      sperre: Object.freeze({
+        status: function () {
+          return invoke("sperre_status");
+        },
+        sperren: function () {
+          return invoke("sperre_anfordern");
+        },
+        entsperren: function () {
+          return invoke("entsperren");
+        },
+        ohneSitzung: function () {
+          return invoke("sperre_ohne_sitzung");
+        },
+        einstellen: function (z) {
+          return invoke("sperre_einstellen", {
+            aktiv: !!(z && z.aktiv),
+            nachMinuten: Math.max(0, Math.floor(Number(z && z.nachMinuten) || 0)),
+            sofort: !!(z && z.sofort),
+          });
+        },
+      }),
       /** Gerätegeheimnis für den Passwort-Tresor (Touch ID + Schlüsselbund) — Promise<string base64>. */
       geraetGeheimnis: "__PLATTFORM__" === "macos"
         ? function (id, anlegen) {
@@ -289,6 +333,12 @@
       return r;
     };
   })();
+  // App-Sperre: Die App meldet Sperren und Entsperren an alle Atlas-Fenster.
+  Object.defineProperty(window, "__atlasDesktopSperre", {
+    value: function (gesperrt) {
+      window.dispatchEvent(new CustomEvent("atlas-desktop-sperre", { detail: { gesperrt: !!gesperrt } }));
+    },
+  });
   // Schnellerfassung: Text als Aufgabe oder Notiz.
   Object.defineProperty(window, "__atlasDesktopNotiz", {
     value: function (notiz) {

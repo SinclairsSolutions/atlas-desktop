@@ -34,16 +34,9 @@ pub fn hauptfenster(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(HAUPT)
 }
 
-/// Hauptfenster zeigen (Dock-Klick, zweiter Start, Deep-Link).
+/// Hauptfenster zeigen (Dock-Klick, zweiter Start, Deep-Link). Ist Atlas
+/// gesperrt, zeigt es den Sperrbildschirm (siehe sperre.rs).
 pub fn hauptfenster_zeigen(app: &AppHandle) {
-    if app.state::<crate::sperre::Zustand>().gesperrt.load(Ordering::SeqCst) {
-        crate::sperre::sperren(app);
-        if let Some(w) = app.get_webview_window(crate::sperre::SPERRE) {
-            let _ = w.show();
-            let _ = w.set_focus();
-        }
-        return;
-    }
     if let Some(w) = hauptfenster(app) {
         let _ = w.unminimize();
         let _ = w.show();
@@ -125,7 +118,7 @@ pub fn weiteres_fenster(app: &AppHandle, url: Url) {
 fn atlas_fenster(app: &AppHandle, url: Url, groesse: Option<tauri::LogicalSize<f64>>) -> Option<WebviewWindow> {
     // Gesperrt: kein neues Fenster an der Sperre vorbei (⌘N, Menüleiste).
     if crate::sperre::ist_gesperrt(app) {
-        crate::sperre::sperren(app);
+        crate::sperre::zur_sperre(app);
         return None;
     }
     // Eigene Fenster (Mail, Passwörter) haben keine Seitenleiste — dort bleibt die
@@ -164,8 +157,8 @@ const PW_HOEHE: f64 = 500.0;
 
 /// Ein-/ausblenden; `unter` = Rechteck des Menüleisten-Symbols (physisch).
 pub fn passwort_schnell(app: &AppHandle, unter: Option<(f64, f64, f64, f64)>) {
-    if app.state::<crate::sperre::Zustand>().gesperrt.load(Ordering::SeqCst) {
-        crate::sperre::sperren(app);
+    if crate::sperre::ist_gesperrt(app) {
+        crate::sperre::zur_sperre(app);
         return;
     }
     let w = match app.get_webview_window(PASSWORT_SCHNELL) {
@@ -209,7 +202,7 @@ pub fn passwort_schnell(app: &AppHandle, unter: Option<(f64, f64, f64, f64)>) {
             w.on_window_event(move |ev| {
                 if let tauri::WindowEvent::Focused(false) = ev {
                     // Während Touch ID fragt, nicht zugehen.
-                    if !crate::sperre::PRUEFUNG_LAEUFT.load(Ordering::SeqCst) {
+                    if !crate::sperre::pruefung_laeuft() {
                         let _ = w2.hide();
                     }
                 }

@@ -1,11 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "werkzeuge",
-  "description": "Mitgelieferte Fenster Einstellungen, Schnellerfassung und Sperre: Geräteeinstellungen, Ordnerwahl, Touch ID, Schnellnotiz an Atlas, Safari-Erweiterung, Ablage im Finder.",
+  "description": "Mitgelieferte Fenster Einstellungen und Schnellerfassung: Geräteeinstellungen, Ordnerwahl, Touch ID, Schnellnotiz an Atlas, Safari-Erweiterung, Ablage im Finder.",
   "windows": [
     "einstellungen",
-    "notiz",
-    "sperre"
+    "notiz"
   ],
   "permissions": [
     "core:window:allow-start-dragging",
@@ -20,7 +19,6 @@
     "allow-notiz-senden",
     "allow-beleg-auswaehlen",
     "allow-bildschirmfoto",
-    "allow-entsperren",
     "allow-touch-id-pruefen",
     "allow-mitteilungen-erlauben",
     "allow-import-ordner-anlegen",

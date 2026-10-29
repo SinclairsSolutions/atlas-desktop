@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "atlas-remote",
-  "description": "Die Live-Seite von Atlas: Mitteilungen, Dock-Zahl, Drucken, fremde Links im Standardbrowser, Downloads in den Download- bzw. Export-Ordner, Bestätigung von Eingangs-Uploads, Workspace-Liste für den Import-Ordner, Touch-ID-Prüfung und Fenster ziehen, Ablage im Finder koppeln/trennen, Mikrofon-Erlaubnis prüfen, Fensterhintergrund hell/dunkel — sonst kein Datei- oder Systemzugriff.",
+  "description": "Die Live-Seite von Atlas: Mitteilungen, Dock-Zahl, Drucken, fremde Links im Standardbrowser, Downloads in den Download- bzw. Export-Ordner, Bestätigung von Eingangs-Uploads, Workspace-Liste für den Import-Ordner, Touch-ID-Prüfung, App-Sperre (Stand, sperren, mit Touch ID entsperren, Einstellung) und Fenster ziehen, Ablage im Finder koppeln/trennen, Mikrofon-Erlaubnis prüfen, Fensterhintergrund hell/dunkel — sonst kein Datei- oder Systemzugriff.",
   "windows": [
     "main",
     "neben-*"
@@ -24,6 +24,13 @@
     "allow-eingang-bereit",
     "allow-import-ordner-setzen",
     "allow-touch-id-pruefen",
+    "allow-biometrie-pruefen",
+    "allow-biometrie-verfuegbar",
+    "allow-sperre-status",
+    "allow-sperre-anfordern",
+    "allow-sperre-ohne-sitzung",
+    "allow-sperre-einstellen",
+    "allow-entsperren",
     "core:window:allow-start-dragging",
     "core:window:allow-internal-toggle-maximize",
     "allow-geraet-geheimnis",

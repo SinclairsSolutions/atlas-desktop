@@ -20,8 +20,15 @@ pub struct Einstellungen {
     pub export_je_mandant: bool,
     /// App beim Öffnen und nach Abwesenheit mit Touch ID entsperren.
     pub touch_id_sperre: bool,
-    /// Nach so vielen Minuten im Hintergrund wieder sperren (0 = nur beim Start).
+    /// Nach so vielen Minuten im Hintergrund bzw. ohne Eingabe wieder sperren
+    /// (0 = nur beim Start). Gilt nicht, wenn `sperre_sofort` an ist.
     pub sperre_nach_minuten: u32,
+    /// Sofort sperren, sobald Atlas wieder nach vorn kommt (nach echter
+    /// Abwesenheit, nicht beim Touch-ID-Dialog oder Fensterwechsel).
+    pub sperre_sofort: bool,
+    /// Ab 0.3.9 ist die Touch-ID-Sperre Standard. Merkt, dass der neue
+    /// Standard einmal übernommen wurde — danach gilt die Wahl der Person.
+    pub sperre_standard_gesetzt: bool,
     /// Globales Tastenkürzel für die Schnellerfassung.
     pub schnell_kuerzel: bool,
     /// Symbol in der Menüleiste.
@@ -45,8 +52,10 @@ impl Default for Einstellungen {
             ueberwachter_ordner: None,
             export_ordner: None,
             export_je_mandant: true,
-            touch_id_sperre: false,
+            touch_id_sperre: true,
             sperre_nach_minuten: 15,
+            sperre_sofort: false,
+            sperre_standard_gesetzt: false,
             schnell_kuerzel: true,
             menueleiste: true,
             passwort_symbol: true,
@@ -80,6 +89,13 @@ pub fn laden(app: &AppHandle) -> Einstellungen {
             e.symbol = "weiss".into();
         }
     }
+    // 0.3.9: Statt der Abmeldung nach 12 Stunden sperrt Atlas mit Touch ID
+    // (bzw. Mac-Passwort). Bisher war die Sperre aus — einmalig einschalten.
+    if !e.sperre_standard_gesetzt {
+        e.touch_id_sperre = true;
+        e.sperre_standard_gesetzt = true;
+        schreiben(app, &e);
+    }
     e
 }
 
@@ -89,6 +105,10 @@ pub fn aktuell(app: &AppHandle) -> Einstellungen {
 
 pub fn speichern(app: &AppHandle, e: &Einstellungen) {
     *app.state::<Speicher>().0.lock().unwrap() = e.clone();
+    schreiben(app, e);
+}
+
+fn schreiben(app: &AppHandle, e: &Einstellungen) {
     if let Some(p) = datei(app) {
         let _ = p.parent().map(std::fs::create_dir_all);
         if let Ok(s) = serde_json::to_string_pretty(e) {

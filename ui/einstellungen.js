@@ -128,7 +128,7 @@
     $("touch").checked = e.touchIdSperre;
     $("touch").disabled = !stand.touchId;
     if (!stand.touchId) $("touchHinweis").textContent = tt("Auf diesem Gerät nicht verfügbar.", "Not available on this device.");
-    $("minuten").value = String(e.sperreNachMinuten);
+    $("minuten").value = e.sperreSofort ? "sofort" : String(e.sperreNachMinuten);
     $("minuten").disabled = !e.touchIdSperre;
     $("autostart").checked = stand.autostart;
     ordnerZeigen($("ordnerPfad"), e.ueberwachterOrdner, tt("nicht eingerichtet", "not set"), tt("Wird überwacht", "Watched"));
@@ -264,7 +264,10 @@
   $("kuerzel").onchange = function () { setzen({ schnellKuerzel: this.checked }); };
   $("jeMandant").onchange = function () { setzen({ exportJeMandant: this.checked }); };
   $("touch").onchange = function () { setzen({ touchIdSperre: this.checked }); };
-  $("minuten").onchange = function () { setzen({ sperreNachMinuten: Number(this.value) }); };
+  $("minuten").onchange = function () {
+    if (this.value === "sofort") setzen({ sperreSofort: true });
+    else setzen({ sperreSofort: false, sperreNachMinuten: Number(this.value) });
+  };
   $("autostart").onchange = function () {
     inv("autostart_setzen", { an: this.checked }).then(laden).catch(function (e) { melden(String(e), true); laden(); });
   };
