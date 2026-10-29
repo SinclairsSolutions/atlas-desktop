@@ -220,6 +220,7 @@ pub fn ereignis(app: &AppHandle, event: MenuEvent) {
         _ => {}
     }
     if id == "fenster-mail" || id == "fenster-passwoerter" || id == "fenster-kommunikation" {
+        log::info!("Menü/Kürzel: {id}");
         eigenes_fenster(app, id);
         return;
     }

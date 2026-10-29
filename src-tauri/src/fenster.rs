@@ -424,7 +424,11 @@ fn vorhandenes_nach_vorn(app: &AppHandle, schluessel: &str) -> bool {
         .get(schluessel)
         .and_then(|l| app.get_webview_window(l))
         .filter(|w| w.is_visible().unwrap_or(false) || w.is_minimized().unwrap_or(false));
-    let Some(w) = vorhanden else { return false };
+    let Some(w) = vorhanden else {
+        log::info!("Bereichsfenster {schluessel}: keins offen, öffne neu");
+        return false;
+    };
+    log::info!("Bereichsfenster {schluessel}: {} nach vorn", w.label());
     let _ = w.unminimize();
     let _ = w.show();
     let _ = w.set_focus();
