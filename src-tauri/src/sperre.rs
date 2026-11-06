@@ -576,6 +576,106 @@ pub fn beim_start(app: &AppHandle) {
     });
 }
 
+/// Schlüsselbund-Dienst für die Anmeldung mit Touch ID.
+#[cfg(target_os = "macos")]
+const ANMELDUNG_DIENST: &str = "com.sinclairs-solutions.atlas.anmeldung";
+#[cfg(target_os = "macos")]
+const ANMELDUNG_KONTO: &str = "atlas";
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Anmeldung {
+    pub email: String,
+    pub passwort: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct AnmeldungStatus {
+    pub eingerichtet: bool,
+    /// Nur die Adresse (für „Als … mit Touch ID anmelden“), nie das Passwort.
+    pub email: Option<String>,
+}
+
+#[cfg(target_os = "macos")]
+fn anmeldung_lesen() -> Option<Anmeldung> {
+    use security_framework::passwords::get_generic_password;
+    let roh = get_generic_password(ANMELDUNG_DIENST, ANMELDUNG_KONTO).ok()?;
+    serde_json::from_slice(&roh).ok()
+}
+
+/// Ist eine Anmeldung mit Touch ID eingerichtet? (ohne Abfrage, ohne Passwort)
+#[tauri::command]
+pub fn anmeldung_status() -> AnmeldungStatus {
+    #[cfg(target_os = "macos")]
+    {
+        let a = anmeldung_lesen();
+        return AnmeldungStatus { eingerichtet: a.is_some(), email: a.map(|x| x.email) };
+    }
+    #[cfg(not(target_os = "macos"))]
+    AnmeldungStatus { eingerichtet: false, email: None }
+}
+
+/// Zugangsdaten nach Touch ID im Schlüsselbund ablegen (wie Safari-Passwörter).
+#[tauri::command]
+pub async fn anmeldung_merken(app: AppHandle, email: String, passwort: String) -> Result<(), String> {
+    if email.len() > 320 || !email.contains('@') || passwort.is_empty() || passwort.len() > 1024 {
+        return Err("Ungültige Angaben.".into());
+    }
+    if ist_gesperrt(&app) {
+        return Err(t("Atlas ist gesperrt.", "Atlas is locked.").into());
+    }
+    if !pruefen(t("Anmeldung mit Touch ID einrichten", "Set up sign-in with Touch ID")).await {
+        return Err(t("Touch ID nicht bestätigt.", "Touch ID not confirmed.").into());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use security_framework::passwords::set_generic_password;
+        let daten = serde_json::to_vec(&Anmeldung { email, passwort }).map_err(|e| e.to_string())?;
+        set_generic_password(ANMELDUNG_DIENST, ANMELDUNG_KONTO, &daten).map_err(|e| {
+            log::error!("Anmeldung: Schlüsselbund schreiben fehlgeschlagen: {e}");
+            format!("Schlüsselbund: {e}")
+        })?;
+        log::info!("Anmeldung mit Touch ID eingerichtet");
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("Nur unter macOS.".into())
+    }
+}
+
+/// Zugangsdaten nur nach Touch ID bzw. Mac-Passwort herausgeben.
+#[tauri::command]
+pub async fn anmeldung_holen(app: AppHandle) -> Result<Anmeldung, String> {
+    if ist_gesperrt(&app) {
+        return Err(t("Atlas ist gesperrt.", "Atlas is locked.").into());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if anmeldung_lesen().is_none() {
+            return Err(t("Keine Anmeldung mit Touch ID eingerichtet.", "Touch ID sign-in is not set up.").into());
+        }
+        if !pruefen(t("Bei Atlas anmelden", "Sign in to Atlas")).await {
+            return Err(t("Touch ID nicht bestätigt.", "Touch ID not confirmed.").into());
+        }
+        anmeldung_lesen().ok_or_else(|| "Schlüsselbund nicht lesbar.".to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("Nur unter macOS.".into())
+    }
+}
+
+/// Gespeicherte Anmeldung löschen (z. B. nach Passwortwechsel oder auf Wunsch).
+#[tauri::command]
+pub fn anmeldung_vergessen() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use security_framework::passwords::delete_generic_password;
+        let _ = delete_generic_password(ANMELDUNG_DIENST, ANMELDUNG_KONTO);
+    }
+    Ok(())
+}
+
 /// Schlüsselbund-Dienst für Gerätegeheimnisse des Passwort-Tresors.
 #[cfg(target_os = "macos")]
 const TRESOR_DIENST: &str = "com.sinclairs-solutions.atlas.tresor";

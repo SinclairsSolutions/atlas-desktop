@@ -149,6 +149,26 @@
           });
         },
       }),
+      /**
+       * Anmeldung mit Touch ID: Zugangsdaten im Schlüsselbund, Herausgabe nur
+       * nach Touch ID / Mac-Passwort. status() → { eingerichtet, email }
+       */
+      anmeldung: "__PLATTFORM__" === "macos"
+        ? Object.freeze({
+            status: function () {
+              return invoke("anmeldung_status");
+            },
+            merken: function (email, passwort) {
+              return invoke("anmeldung_merken", { email: String(email), passwort: String(passwort) });
+            },
+            holen: function () {
+              return invoke("anmeldung_holen");
+            },
+            vergessen: function () {
+              return invoke("anmeldung_vergessen");
+            },
+          })
+        : null,
       /** Gerätegeheimnis für den Passwort-Tresor (Touch ID + Schlüsselbund) — Promise<string base64>. */
       geraetGeheimnis: "__PLATTFORM__" === "macos"
         ? function (id, anlegen) {
